@@ -28,20 +28,12 @@ function OrderManagement() {
   const [ordersPerPage] = useState(10);
   const navigate = useNavigate();
 
-  // Get auth token from localStorage
-  const getAuthToken = () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/");
-      return null;
-    }
-    return token;
-  };
+
+  
 
   // Fetch orders from API with authentication
   const fetchOrders = async () => {
-    const token = getAuthToken();
-    if (!token) return;
+    
 
     try {
       setLoading(true);
@@ -51,7 +43,7 @@ function OrderManagement() {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            
           },
           credentials: "include",
         }
@@ -69,13 +61,8 @@ function OrderManagement() {
         setError(data.message || "Failed to fetch orders");
       }
     } catch (err) {
-      if (err.message.includes("401")) {
-        // Token expired or invalid
-        localStorage.removeItem("token");
-        navigate("/login");
-      } else {
         setError(err.message);
-      }
+      
     } finally {
       setLoading(false);
     }
@@ -87,9 +74,7 @@ function OrderManagement() {
 
   // Handle status change with authentication
   const handleStatusChange = async (orderId, newStatus) => {
-    const token = getAuthToken();
-    if (!token) return;
-
+   
     try {
       // First update locally for instant UI feedback
       setOrders((prevOrders) =>
@@ -109,7 +94,7 @@ function OrderManagement() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+           
           },
           credentials: "include",
           body: JSON.stringify({ status: newStatus }),
@@ -241,8 +226,7 @@ function OrderManagement() {
 
   // Refresh orders
   const refreshOrders = async () => {
-    const token = getAuthToken();
-    if (!token) return;
+   
 
     try {
       setLoading(true);
@@ -252,7 +236,7 @@ function OrderManagement() {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+           
           },
           credentials: "include",
         }

@@ -1,64 +1,53 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-import {jwtDecode} from "jwt-decode";
-
+import axios from "axios";
 
 const AuthContext = createContext();
 
 function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [token, setToken] = useState(null);
   const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-
-    if (storedToken) {
+    const verifyAuth = async () => {
       try {
-        const decoded = jwtDecode(storedToken);
-        setToken(storedToken);
-        setRole(decoded.role);
-        setIsAuthenticated(true);
+        const res = await axios.get("https://agrofarm-vd8i.onrender.com/api/auth/check", {
+          withCredentials: true,
+        });
+
+        if (res.data.authenticated) {
+          setIsAuthenticated(true);
+          setRole(res.data.role);
+        } else {
+          setIsAuthenticated(false);
+          setRole(null);
+        }
       } catch (err) {
-        console.error("Invalid token:", err);
-        logout();
+        setIsAuthenticated(false);
+        setRole(null);
+      } finally {
+        setLoading(false);
       }
-    } else {
-      logout();
-    }
+    };
+
+    verifyAuth();
   }, []);
 
-  function login(newToken) {
-    try {
-      const decoded = jwtDecode(newToken);
-      localStorage.setItem("token", newToken);
-      setToken(newToken);
-      setRole(decoded.role);
-      console.log("Role is:",role);
-      setIsAuthenticated(true);
-    } catch (err) {
-      console.error("Invalid token on login:", err);
-    }
-  }
-
-  function logout() {
-    localStorage.removeItem("token");
-    setToken(null);
-    setRole(null);
-    setIsAuthenticated(false);
-  }
+  // const logout = async () => {
+  //   await axios.post("https://agrofarm-vd8i.onrender.com/api/auth/logout", {}, { withCredentials: true });
+  //   setIsAuthenticated(false);
+  //   setRole(null);
+  // };
 
   return (
-    <AuthContext.Provider
-      value={{ isAuthenticated, token,role, login, logout }}
-    >
+    <AuthContext.Provider value={{ isAuthenticated, role, loading }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-function useAuth() {
+export function useAuth() {
   return useContext(AuthContext);
 }
 
-export { AuthProvider, useAuth };
+export { AuthProvider };
