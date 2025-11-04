@@ -3,6 +3,7 @@ import axios from "axios";
 import { Send, Loader2 } from "lucide-react";
 import RobotProfileImage from "../assets/robot.png";
 import UserProfileImage from "../assets/user.png";
+import dayjs from "dayjs";
 
 export default function ChatBot() {
   const [chatMessages, setChatMessages] = useState([]);
@@ -10,6 +11,7 @@ export default function ChatBot() {
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
 
+  // Auto scroll to bottom on new message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -21,11 +23,12 @@ export default function ChatBot() {
       id: crypto.randomUUID(),
       message: inputText.trim(),
       sender: "user",
+      time: dayjs().valueOf(), // store timestamp
     };
+
     setChatMessages((prev) => [...prev, userMessage]);
     const question = inputText.trim();
     setInputText("");
-
     setIsLoading(true);
 
     try {
@@ -41,6 +44,7 @@ export default function ChatBot() {
           response.data.answer ||
           "I couldn't process that request.",
         sender: "robot",
+        time: dayjs().valueOf(),
       };
 
       setChatMessages((prev) => [...prev, botMessage]);
@@ -51,12 +55,18 @@ export default function ChatBot() {
         message:
           "Sorry, I'm having trouble connecting. Please try again later.",
         sender: "robot",
+        time: dayjs().valueOf(),
       };
       setChatMessages((prev) => [...prev, botMessage]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  function handleKeyDown(event) {
+    if (event.key === "Enter") handleSendMessage();
+    else if (event.key === "Escape") setInputText("");
+  }
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -88,7 +98,8 @@ export default function ChatBot() {
             </p>
           </div>
         )}
-        {chatMessages.map(({ id, sender, message }) => (
+
+        {chatMessages.map(({ id, sender, message, time }) => (
           <div
             key={id}
             className={`flex mb-3 animate-fade-in ${
@@ -102,6 +113,7 @@ export default function ChatBot() {
                 className="w-8 h-8 rounded-full mr-2 self-end flex-shrink-0"
               />
             )}
+
             <div
               className={`px-4 py-2 rounded-2xl text-sm shadow-sm max-w-[75%] ${
                 sender === "user"
@@ -109,8 +121,14 @@ export default function ChatBot() {
                   : "bg-white text-gray-800 rounded-bl-none border border-gray-200"
               }`}
             >
-              {message}
+              <div>{message}</div>
+              {time && (
+                <div className="text-[10px] text-gray-400 mt-1 text-right">
+                  {dayjs(time).format("h:mm A")}
+                </div>
+              )}
             </div>
+
             {sender === "user" && (
               <img
                 src={UserProfileImage}
@@ -120,6 +138,7 @@ export default function ChatBot() {
             )}
           </div>
         ))}
+
         {isLoading && (
           <div className="flex justify-start mb-3">
             <img
@@ -133,6 +152,7 @@ export default function ChatBot() {
             </div>
           </div>
         )}
+
         <div ref={chatEndRef}></div>
       </div>
 
@@ -142,7 +162,7 @@ export default function ChatBot() {
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+          onKeyDown={handleKeyDown}
           placeholder="Ask about farming, crops, fertilizers..."
           disabled={isLoading}
           className="flex-grow border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
