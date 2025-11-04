@@ -123,7 +123,7 @@ export default function ChatBot() {
             >
               <div>{message}</div>
               {time && (
-                <div className="text-[10px] text-gray-400 mt-1 text-right">
+                <div className="text-[10px] text-black-400 mt-1 text-right">
                   {dayjs(time).format("h:mm A")}
                 </div>
               )}
