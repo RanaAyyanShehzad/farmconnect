@@ -36,6 +36,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ChatBotWidget from "./components/ChatBotWidget";
 
 // Auth Context
 // import { AuthProvider } from "./context/AuthContext";
@@ -57,6 +58,7 @@ export default function App() {
             draggable
             pauseOnHover
           />
+          <ChatBotWidget />
           <Routes>
             {/* Public Route */}
             <Route path="/" element={<LandingPage />} />
@@ -91,7 +93,7 @@ export default function App() {
             >
               <Route index element={<BuyerDashboard />} />
               <Route path="products" element={<BuyerProducts />} />
-              <Route path="cart" element={<BuyerCart />} />
+              <Route path="cart" element={<ShoppingCart />} />
               <Route path="myorders" element={<MyOrders />} />
               <Route path="wishlist" element={<Whishlist />} />
               <Route path="buyerprofile" element={<BuyerProfile />} />
@@ -100,7 +102,7 @@ export default function App() {
             <Route
               path="/supplier"
               element={
-                <ProtectedRoute >
+                <ProtectedRoute>
                   <SupplierLayout />
                 </ProtectedRoute>
               }
@@ -113,7 +115,6 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
-      
       </AuthProvider>
     </Provider>
   );

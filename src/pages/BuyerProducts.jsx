@@ -10,7 +10,8 @@ const BuyerProducts = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [wishlistItems, setWishlistItems] = useState([]);
 
-  const API_URL = "https://agrofarm-vd8i.onrender.com/api/products/all";
+  const API_URL =
+    "https://agrofarm-vd8i.onrender.com/api/products/all";
   const CART_API = "https://agrofarm-vd8i.onrender.com/api/cart/add";
   const WISHLIST_API = "https://agrofarm-vd8i.onrender.com/api/wishlist/add";
 
@@ -22,6 +23,70 @@ const BuyerProducts = () => {
     { id: "pesticides", name: "Pesticides" },
     { id: "fertilizer", name: "Fertilizer" },
   ];
+
+  // Function to render star ratings
+  const renderStarRating = (rating) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    // Full stars
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <svg
+          key={`full-${i}`}
+          className="w-4 h-4 text-yellow-400 fill-current"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      );
+    }
+
+    // Half star
+    if (hasHalfStar) {
+      stars.push(
+        <svg
+          key="half"
+          className="w-4 h-4 text-yellow-400 fill-current"
+          viewBox="0 0 20 20"
+        >
+          <defs>
+            <linearGradient id="half-star">
+              <stop offset="50%" stopColor="currentColor" />
+              <stop offset="50%" stopColor="transparent" />
+            </linearGradient>
+          </defs>
+          <path
+            fill="url(#half-star)"
+            d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+          />
+        </svg>
+      );
+    }
+
+    // Empty stars
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <svg
+          key={`empty-${i}`}
+          className="w-4 h-4 text-gray-300 fill-current"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      );
+    }
+
+    return stars;
+  };
+
+  // Function to format rating display
+  const formatRating = (rating) => {
+    if (rating === 0) return "No ratings";
+    return `${rating.toFixed(1)}/5.0`;
+  };
 
   const fetchProducts = async () => {
     try {
@@ -143,9 +208,7 @@ const BuyerProducts = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <h1 className="text-3xl font-bold text-gray-800">
-            Browse All Products
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-800">Browse Products</h1>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <div className="relative flex-grow">
@@ -303,6 +366,22 @@ const BuyerProducts = () => {
                   <p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-grow">
                     {product.description}
                   </p>
+
+                  {/* Rating Section */}
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      {renderStarRating(product.averageRating || 0)}
+                    </div>
+                    <span className="text-sm text-gray-500 ml-2">
+                      {formatRating(product.averageRating || 0)}
+                    </span>
+                  </div>
+
+                  {/* Seller Info */}
+                  <div className="text-xs text-gray-500 mb-4">
+                    Sold by:{" "}
+                    {product.upLoadedBy?.uploaderName || "Unknown Seller"}
+                  </div>
 
                   <div className="mt-auto flex justify-center items-center">
                     <button

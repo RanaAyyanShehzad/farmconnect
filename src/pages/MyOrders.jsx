@@ -203,7 +203,7 @@ function MyOrders() {
                   <div className="space-y-4">
                     {order.products?.map((product) => (
                       <div
-                        key={product._id}
+                        key={product.productId}
                         className="flex items-start  gap-4 pb-4 border-b border-gray-100 last:border-0"
                       >
                         <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
