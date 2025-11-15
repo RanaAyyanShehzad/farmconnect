@@ -14,7 +14,7 @@ function ShoppingCart() {
     city: "",
     zipCode: "",
     notes: "",
-    paymentMethod: "cod",
+    paymentMethod: "cash-on-delivery",
   });
   const [cartId, setCartId] = useState(null);
 
@@ -49,7 +49,7 @@ function ShoppingCart() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            cartId: cartId, // Use the actual cart ID here
+            cartId: cartId,
             paymentMethod: checkoutForm.paymentMethod,
             street: checkoutForm.street,
             city: checkoutForm.city,
@@ -61,8 +61,17 @@ function ShoppingCart() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to place order");
+        const errorText = await response.text();
+        let errorMessage = "Failed to place order";
+
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -76,8 +85,6 @@ function ShoppingCart() {
     }
   };
 
- 
-
   const fetchCartItems = async () => {
     try {
       const response = await fetch(
@@ -90,29 +97,65 @@ function ShoppingCart() {
           },
         }
       );
+
       if (!response.ok) {
-        throw new Error("Failed to fetch cart items");
+        const errorText = await response.text();
+        let errorMessage = "Failed to fetch cart items";
+
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
+
       const data = await response.json();
-      setCartItems(data.cart?.products || []);
-      setCartId(data.cart?._id); // Store the cart ID
+
+      // Map the products to include both cart item info and product details
+      const items =
+        data.cart?.products?.map((cartItem) => ({
+          // Cart item properties
+          id: cartItem._id, // Cart item ID
+          quantity: cartItem.quantity, // Quantity in cart
+
+          // Product properties
+          productId: cartItem.productId?._id,
+          name: cartItem.productId?.name,
+          description: cartItem.productId?.description,
+          price: cartItem.productId?.price,
+          unit: cartItem.productId?.unit,
+          availableQuantity: cartItem.productId?.quantity, // Available stock
+          category: cartItem.productId?.category,
+          isAvailable: cartItem.productId?.isAvailable,
+          images: cartItem.productId?.images,
+          seller: cartItem.productId?.upLoadedBy,
+        })) || [];
+
+      setCartItems(items);
+      console.log(items);
+      setCartId(data.cart?._id);
     } catch (err) {
       setError(err.message || "Failed to fetch cart items");
     } finally {
       setLoading(false);
     }
   };
-
+  useEffect(() => {
+    console.log("Cart items updated:", cartItems);
+  }, [cartItems]); // This will run whenever cartItems changes
   useEffect(() => {
     fetchCartItems();
   }, []);
 
   const total = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
     0
   );
 
-  const updateQuantity = async (id, newQuantity) => {
+  const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity < 1) return;
     if (!cartId) {
       toast.error("No cart found");
@@ -129,43 +172,46 @@ function ShoppingCart() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            cartId, // Include cart ID
-            productId: id,
+            productId: productId,
             quantity: newQuantity,
           }),
         }
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.log("error:", errorData.message);
-        toast.error(errorData.message || "Failed to update quantity");
+        const errorText = await response.text();
+        let errorMessage = "Failed to update quantity";
+
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+
+        toast.error(errorMessage);
+        return;
       }
 
-      setCartItems(
-        cartItems.map((item) =>
-          item._id === id ? { ...item, quantity: newQuantity } : item
+      const data = await response.json();
+
+      // Update local state immediately for better UX
+      setCartItems((prevItems) =>
+        prevItems.map((item) =>
+          item.productId === productId
+            ? { ...item, quantity: newQuantity }
+            : item
         )
       );
 
-      const refreshResponse = await fetch(
-        "https://agrofarm-vd8i.onrender.com/api/cart/my-cart",
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setCartItems(data.cart?.products || []);
-        setCartId(data.cart?._id);
-      }
+      toast.success(data.message || "Quantity updated successfully");
     } catch (err) {
-      toast.error(err || "Failed to update quantity:", err);
+      console.error("Failed to update quantity:", err);
+      toast.error(
+        err.message || "Failed to update quantity. Please try again."
+      );
+      // Refresh cart items to sync with server
+      fetchCartItems();
     }
   };
 
@@ -177,7 +223,7 @@ function ShoppingCart() {
 
     try {
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/cart/clear/${cartId}`, // Use cart ID in the URL
+        `https://agrofarm-vd8i.onrender.com/api/cart/clear`,
         {
           method: "DELETE",
           credentials: "include",
@@ -187,25 +233,31 @@ function ShoppingCart() {
         }
       );
 
-      if (response.ok) {
-        const mess = await response.json();
-        toast.success(mess.message || "Cart is cleared successfully.");
-        setCartId(null); // Reset cart ID after clearing
-      }
-
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to clear cart");
+        const errorText = await response.text();
+        let errorMessage = "Failed to clear cart";
+
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
 
-      fetchCartItems();
+      const data = await response.json();
+      toast.success(data.message || "Cart cleared successfully");
+      setCartItems([]);
+      setCartId(null);
     } catch (err) {
       console.error("Failed to clear cart:", err);
       toast.error(err.message || "Failed to clear cart. Please try again.");
     }
   };
 
-  const removeItem = async (id) => {
+  const removeItem = async (cartItemId, productId) => {
     if (!cartId) {
       toast.error("No cart found");
       return;
@@ -213,46 +265,68 @@ function ShoppingCart() {
 
     try {
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/cart/item/${id}`,
+        `https://agrofarm-vd8i.onrender.com/api/cart/item/${productId}`,
         {
           method: "DELETE",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ cartId }), // Include cart ID in the body
         }
       );
 
+      // First check if response is OK
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to remove item");
-      }
+        const errorText = await response.text();
+        let errorMessage = "Failed to remove item";
 
-      const refreshResponse = await fetch(
-        "https://agrofarm-vd8i.onrender.com/api/cart/my-cart",
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+        // Try to parse as JSON, if fails use text
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // If it's HTML or other non-JSON, use a generic message
+          if (errorText.includes("<!DOCTYPE")) {
+            errorMessage = "Server error occurred while removing item";
+          } else {
+            errorMessage = errorText || errorMessage;
+          }
         }
-      );
 
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setCartItems(data.cart?.products || []);
-        setCartId(data.cart?._id);
+        throw new Error(errorMessage);
       }
+
+      // Try to parse response as JSON
+      let data;
+      const responseText = await response.text();
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          // If response is empty or not JSON, create a success response
+          data = { message: "Item removed successfully" };
+        }
+      } else {
+        data = { message: "Item removed successfully" };
+      }
+
+      // Remove item from local state
+      setCartItems((prevItems) =>
+        prevItems.filter((item) => item.id !== productId)
+      );
+      toast.success(data.message || "Item removed from cart");
+      fetchCartItems();
     } catch (err) {
       console.error("Failed to remove item:", err);
       toast.error(err.message || "Failed to remove item. Please try again.");
+      // Refresh cart items to sync with server
+      fetchCartItems();
     }
   };
 
   const formatCurrency = (amount) => {
-    return `₨ ${amount.toLocaleString()}`;
+    return `₨ ${amount?.toLocaleString() || "0"}`;
   };
 
   if (loading) {
@@ -284,6 +358,12 @@ function ShoppingCart() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-red-700">{error}</p>
+              <button
+                onClick={fetchCartItems}
+                className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition"
+              >
+                Retry
+              </button>
             </div>
           </div>
         </div>
@@ -324,7 +404,7 @@ function ShoppingCart() {
                 <div className="divide-y divide-gray-100">
                   {cartItems.map((item) => (
                     <div
-                      key={item._id}
+                      key={item.id}
                       className="py-6 flex flex-col sm:flex-row gap-4"
                     >
                       <div className="w-full sm:w-32 h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -362,11 +442,14 @@ function ShoppingCart() {
                                 {item.name}
                               </h3>
                               <p className="mt-1 text-sm text-gray-600">
-                                Farmer: {item.supplier?.userID}
+                                Farmer: {item.seller?.uploaderName || "Unknown"}
+                              </p>
+                              <p className="mt-1 text-sm text-gray-500 capitalize">
+                                Category: {item.category}
                               </p>
                             </div>
                             <p className="text-lg font-semibold text-green-700">
-                              {formatCurrency(item.price)} / unit
+                              {formatCurrency(item.price)} / {item.unit}
                             </p>
                           </div>
 
@@ -401,10 +484,14 @@ function ShoppingCart() {
 
                             <div className="flex items-center gap-4">
                               <p className="font-semibold text-gray-900">
-                                {formatCurrency(item.price * item.quantity)}
+                                {formatCurrency(
+                                  (item.price || 0) * (item.quantity || 0)
+                                )}
                               </p>
                               <button
-                                onClick={() => removeItem(item._id)}
+                                onClick={() =>
+                                  removeItem(item.cartItemId, item.id)
+                                }
                                 className="text-red-500 hover:text-red-700 transition-colors"
                                 aria-label="Remove item"
                               >
@@ -501,7 +588,7 @@ function ShoppingCart() {
         </div>
       )}
 
-      {/* Checkout Modal */}
+      {/* Checkout Modal - Keep your existing checkout modal code */}
       {showCheckoutModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -639,7 +726,9 @@ function ShoppingCart() {
                         name="paymentMethod"
                         type="radio"
                         value="cash-on-delivery"
-                        checked={checkoutForm.paymentMethod === "cash-on-delivery"}
+                        checked={
+                          checkoutForm.paymentMethod === "cash-on-delivery"
+                        }
                         onChange={handleInputChange}
                         className="h-5 w-5 text-green-600 focus:ring-green-500"
                       />
@@ -654,7 +743,6 @@ function ShoppingCart() {
                       </label>
                     </div>
 
-                   
                     <div className="flex items-center bg-gray-50 p-4 rounded-lg">
                       <input
                         id="easypaisa"
@@ -669,9 +757,7 @@ function ShoppingCart() {
                         htmlFor="jazzcash"
                         className="ml-3 block text-sm font-medium text-gray-700"
                       >
-                        <span className="font-semibold">
-                          EasyPaisa
-                        </span>
+                        <span className="font-semibold">EasyPaisa</span>
                         <p className="text-gray-500 mt-1">
                           Mobile wallet payment
                         </p>
@@ -691,9 +777,7 @@ function ShoppingCart() {
                         htmlFor="jazzcash"
                         className="ml-3 block text-sm font-medium text-gray-700"
                       >
-                        <span className="font-semibold">
-                          JazzCash
-                        </span>
+                        <span className="font-semibold">JazzCash</span>
                         <p className="text-gray-500 mt-1">
                           Mobile wallet payment
                         </p>

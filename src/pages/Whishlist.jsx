@@ -99,9 +99,11 @@ const Wishlist = () => {
       if (!response.ok) throw new Error("Failed to add to cart");
 
       toast.success("Item added to cart");
+      fetchWishlist();
     } catch (error) {
       toast.error("Failed to add to cart");
       console.error("Add to cart error:", error);
+      fetchWishlist();
     }
   };
 

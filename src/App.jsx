@@ -93,7 +93,7 @@ export default function App() {
             >
               <Route index element={<BuyerDashboard />} />
               <Route path="products" element={<BuyerProducts />} />
-              <Route path="cart" element={<BuyerCart />} />
+              <Route path="cart" element={<ShoppingCart />} />
               <Route path="myorders" element={<MyOrders />} />
               <Route path="wishlist" element={<Whishlist />} />
               <Route path="buyerprofile" element={<BuyerProfile />} />
