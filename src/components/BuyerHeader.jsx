@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 import React from "react";
 import { useSelector } from "react-redux";
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
+import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
+import LanguageToggle from "./LanguageToggle";
+import { useTranslation } from "../hooks/useTranslation";
 
 function BuyerHeader({ sidebarOpen, setSidebarOpen }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Get the name from Redux store
-  const { name ,img} = useSelector((state) => state.user);
+  const { name, img } = useSelector((state) => state.user);
+  const weather = useWeatherDisplay();
+  const weatherLabel =
+    weather.status === "loading" ? "..." : weather.temperature;
+  const { t } = useTranslation();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -68,12 +75,13 @@ function BuyerHeader({ sidebarOpen, setSidebarOpen }) {
               />
             </svg>
             <span className="text-white font-semibold text-lg">
-              FarmConnect
+              {t("app.brand")}
             </span>
           </div>
 
           {/* Right section */}
-          <div className="flex items-center space-x-4 ml-auto">
+          <div className="flex items-center space-x-3 ml-auto">
+            <LanguageToggle />
             {/* Weather */}
             <span className="hidden md:flex items-center text-white">
               <svg
@@ -89,7 +97,7 @@ function BuyerHeader({ sidebarOpen, setSidebarOpen }) {
                   d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
                 />
               </svg>
-              <span>28°C</span>
+              <span title={weather.description}>{weatherLabel}</span>
             </span>
 
             {/* Notifications */}
@@ -172,8 +180,12 @@ function BuyerHeader({ sidebarOpen, setSidebarOpen }) {
                     />
                   </svg>
                 )}
-              </div><Link to={"/buyer/buyerprofile"}>
-              <span className="hidden md:inline">{name || "Buyer"}</span></Link>
+              </div>
+              <Link to={"/buyer/buyerprofile"}>
+                <span className="hidden md:inline">
+                  {name || t("roles.buyer")}
+                </span>
+              </Link>
             </div>
           </div>
         </div>

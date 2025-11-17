@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "../features/userSlice";
+import { useTranslation } from "../hooks/useTranslation";
+import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 
 function Dashboard() {
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
@@ -10,8 +12,21 @@ function Dashboard() {
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-
+  const { t } = useTranslation();
+  const {
+    data: weatherData,
+    city,
+    status,
+  } = useSelector((state) => state.weather);
+  const fallbackWeather = useWeatherDisplay();
+  const weatherLoading = status === "loading";
+  const weatherTemperature =
+    typeof weatherData?.temperature === "number"
+      ? `${Math.round(weatherData.temperature)}°C`
+      : fallbackWeather.temperature || "—";
+  const weatherDescription =
+    weatherData?.description || fallbackWeather.description || "—";
+  const weatherLocation = city || fallbackWeather.city || "";
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -19,8 +34,9 @@ function Dashboard() {
 
         // Fetch active orders count
         const ordersResponse = await axios.get(
-          "https://agrofarm-vd8i.onrender.com/api/v1/order/supplier-orders",{
-            withCredentials:true,
+          "https://agrofarm-vd8i.onrender.com/api/v1/order/supplier-orders",
+          {
+            withCredentials: true,
           }
         );
         setActiveOrdersCount(ordersResponse.data.count);
@@ -31,7 +47,6 @@ function Dashboard() {
 
         const completedOrders = ordersResponse.data.orders.filter(
           (order) =>
-
             order.status === "delivered" &&
             new Date(order.createdAt).getMonth() === currentMonth &&
             new Date(order.createdAt).getFullYear() === currentYear
@@ -50,7 +65,7 @@ function Dashboard() {
         const productsResponse = await axios.get(
           "https://agrofarm-vd8i.onrender.com/api/products/my_product",
           {
-            withCredentials:true,
+            withCredentials: true,
           }
         );
         setProductsCount(productsResponse.data.products?.length || 0);
@@ -75,7 +90,7 @@ function Dashboard() {
           <div>
             <p className="text-sm font-medium opacity-80">{title}</p>
             <p className="text-2xl font-bold mt-1">
-              {loading ? "Loading..." : value}
+              {loading ? t("common.loading") : value}
             </p>
             {subtitle && <p className="text-xs mt-1 opacity-70">{subtitle}</p>}
           </div>
@@ -87,21 +102,23 @@ function Dashboard() {
 
   if (error) {
     return (
-      <div className="p-4 text-red-500">Error loading dashboard: {error}</div>
+      <div className="p-4 text-red-500">
+        {t("weather.errorTitle")}: {error}
+      </div>
     );
   }
 
   return (
     <div className="m-0 p-0">
       <h1 className="text-2xl font-semibold text-green-700 mb-6">
-        Farmer Dashboard
+        {t("dashboard.title")}
       </h1>
 
       {/* Dashboard Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         {/* Total Orders */}
         <DashboardCard
-          title="Total Orders"
+          title={t("dashboard.totalOrders")}
           value={activeOrdersCount}
           icon={
             <svg
@@ -124,7 +141,7 @@ function Dashboard() {
 
         {/* Products Listed */}
         <DashboardCard
-          title="Products Listed"
+          title={t("dashboard.productsListed")}
           value={productsCount}
           icon={
             <svg
@@ -147,7 +164,7 @@ function Dashboard() {
 
         {/* Revenue This Month */}
         <DashboardCard
-          title="Revenue (Month)"
+          title={t("dashboard.revenueMonth")}
           value={`₨ ${revenue.toLocaleString()}`}
           icon={
             <svg
@@ -170,9 +187,15 @@ function Dashboard() {
 
         {/* Weather Status */}
         <DashboardCard
-          title="Weather Status"
-          value="Clear"
-          subtitle="28°C - Islamabad"
+          title={t("dashboard.weatherStatus")}
+          value={weatherLoading ? t("common.loading") : weatherTemperature}
+          subtitle={
+            weatherLoading
+              ? weatherDescription
+              : `${weatherDescription}${
+                  weatherLocation ? ` · ${weatherLocation}` : ""
+                }`
+          }
           icon={
             <svg
               className="w-8 h-8 text-sky-600"
@@ -199,31 +222,31 @@ function Dashboard() {
         <div className="lg:col-span-2 bg-white rounded-lg shadow-xl p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-800">
-              Recent Orders
+              {t("dashboard.recentOrders")}
             </h2>
             <a
               href="#"
               className="text-green-600 hover:text-green-800 text-sm font-semibold"
             >
-              View All
+              {t("common.viewAll")}
             </a>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-xs font-semibold tracking-wide text-gray-500 uppercase border-b-2 border-b-gray-300">
-                  <th className="px-4 py-3">Order ID</th>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Buyer</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">{t("dashboard.table.order")}</th>
+                  <th className="px-4 py-3">{t("dashboard.table.product")}</th>
+                  <th className="px-4 py-3">{t("dashboard.table.buyer")}</th>
+                  <th className="px-4 py-3">{t("dashboard.table.status")}</th>
+                  <th className="px-4 py-3">{t("dashboard.table.amount")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {loading ? (
                   <tr>
                     <td colSpan="5" className="px-4 py-3 text-center">
-                      Loading orders...
+                      {t("dashboard.loadingOrders")}
                     </td>
                   </tr>
                 ) : recentOrders.length > 0 ? (
@@ -260,7 +283,7 @@ function Dashboard() {
                 ) : (
                   <tr>
                     <td colSpan="5" className="px-4 py-3 text-center">
-                      No recent orders found
+                      {t("dashboard.noOrders")}
                     </td>
                   </tr>
                 )}
@@ -273,7 +296,7 @@ function Dashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-800">
-              Weather Forecast
+              {t("dashboard.weatherForecast")}
             </h2>
             <span className="text-sm text-gray-500">Islamabad Region</span>
           </div>
@@ -293,8 +316,10 @@ function Dashboard() {
                   />
                 </svg>
                 <div>
-                  <div className="font-medium">Today</div>
-                  <div className="text-sm text-gray-500">Sunny</div>
+                  <div className="font-medium">{t("common.today")}</div>
+                  <div className="text-sm text-gray-500">
+                    {t("dashboard.weatherStatus")}
+                  </div>
                 </div>
               </div>
               <div className="text-right">
@@ -314,7 +339,7 @@ function Dashboard() {
                   <path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" />
                 </svg>
                 <div>
-                  <div className="font-medium">Tomorrow</div>
+                  <div className="font-medium">{t("common.tomorrow")}</div>
                   <div className="text-sm text-gray-500">Partly Cloudy</div>
                 </div>
               </div>

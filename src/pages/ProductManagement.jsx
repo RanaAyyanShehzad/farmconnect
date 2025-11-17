@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
 const ProductManagement = () => {
   // State variables
@@ -19,6 +20,7 @@ const ProductManagement = () => {
     images: [],
   });
   const [imagePreview, setImagePreview] = useState(null);
+  const { openPreview, ProductPreviewModal } = useProductPreview();
 
   // Constants
   const CLOUDINARY_UPLOAD_PRESET = "FarmConnect";
@@ -532,206 +534,215 @@ const ProductManagement = () => {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold text-gray-800">My Products</h1>
-        <button
-          onClick={() => {
-            setShowAddForm(true);
-            setShowEditForm(false);
-            resetForm();
-          }}
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
-          disabled={loading}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-          Add Product
-        </button>
-      </div>
-
-      {error && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-lg flex justify-between items-center animate-fadeIn">
-          <div>
-            <p className="font-semibold">Error</p>
-            <p>{error}</p>
-          </div>
+    <>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+          <h1 className="text-3xl font-bold text-gray-800">My Products</h1>
           <button
-            onClick={() => setError("")}
-            className="text-red-700 hover:text-red-900 font-bold text-xl transition"
+            onClick={() => {
+              setShowAddForm(true);
+              setShowEditForm(false);
+              resetForm();
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg shadow-md transition duration-300 flex items-center gap-2"
+            disabled={loading}
           >
-            &times;
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Add Product
           </button>
         </div>
-      )}
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-500"></div>
-          <p className="mt-4 text-gray-600 text-lg">Loading your products...</p>
-        </div>
-      ) : showAddForm ? (
-        renderProductForm(false)
-      ) : showEditForm ? (
-        renderProductForm(true)
-      ) : products.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm p-8 text-center animate-fadeIn">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-16 w-16 mx-auto text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1}
-              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-            />
-          </svg>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">
-            No products yet
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by adding your first product.
-          </p>
-          <div className="mt-6">
+        {error && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-lg flex justify-between items-center animate-fadeIn">
+            <div>
+              <p className="font-semibold">Error</p>
+              <p>{error}</p>
+            </div>
             <button
-              onClick={() => setShowAddForm(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
+              onClick={() => setError("")}
+              className="text-red-700 hover:text-red-900 font-bold text-xl transition"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="-ml-1 mr-2 h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Add Product
+              &times;
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {products.map((product) => (
-            <div
-              key={product._id}
-              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300 transform hover:-translate-y-1 group relative"
+        )}
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-500"></div>
+            <p className="mt-4 text-gray-600 text-lg">
+              Loading your products...
+            </p>
+          </div>
+        ) : showAddForm ? (
+          renderProductForm(false)
+        ) : showEditForm ? (
+          renderProductForm(true)
+        ) : products.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center animate-fadeIn">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-16 w-16 mx-auto text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <div className="relative h-48 bg-gray-100 overflow-hidden">
-                {product.images?.[0] ? (
-                  <img
-                    src={product.images[0]}
-                    alt={product.name}
-                    className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+              />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              No products yet
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Get started by adding your first product.
+            </p>
+            <div className="mt-6">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="-ml-1 mr-2 h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+                    clipRule="evenodd"
                   />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-12 w-12"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-                )}
-                <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition duration-300">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEditClick(product)}
-                      className="p-2 bg-white rounded-full shadow-md hover:bg-green-100 transition"
-                      title="Edit"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-green-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteProduct(product._id)}
-                      className="p-2 bg-white rounded-full shadow-md hover:bg-red-100 transition"
-                      title="Delete"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-red-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="p-5">
-                <div className="flex flex-row justify-between">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-1">
-                    {product.name}
-                  </h3>
-                  {product.category && (
-                    <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mb-2">
-                      {product.category}
-                    </span>
-                  )}
-                </div>
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                  {product.description}
-                </p>
-                <div className="flex justify-between items-center mt-4">
-                  <span className="text-green-700 font-bold">
-                    Rs. {product.price.toLocaleString()}/{product.unit}
-                  </span>
-                  <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                    Qty: {product.quantity}
-                  </span>
-                </div>
-              </div>
+                </svg>
+                Add Product
+              </button>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {products.map((product) => (
+              <div
+                key={product._id}
+                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300 transform hover:-translate-y-1 group relative"
+              >
+                <div className="relative h-48 bg-gray-100 overflow-hidden">
+                  {product.images?.[0] ? (
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="w-full h-full cursor-zoom-in object-cover transition duration-300 group-hover:scale-105"
+                      onClick={() => openPreview(product)}
+                    />
+                  ) : (
+                    <div
+                      className="absolute inset-0 flex cursor-zoom-in items-center justify-center text-gray-400"
+                      onClick={() => openPreview(product)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-12 w-12"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition duration-300">
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditClick(product)}
+                        className="p-2 bg-white rounded-full shadow-md hover:bg-green-100 transition"
+                        title="Edit"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4 text-green-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProduct(product._id)}
+                        className="p-2 bg-white rounded-full shadow-md hover:bg-red-100 transition"
+                        title="Delete"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4 text-red-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <div className="flex flex-row justify-between">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-1">
+                      {product.name}
+                    </h3>
+                    {product.category && (
+                      <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mb-2">
+                        {product.category}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                    {product.description}
+                  </p>
+                  <div className="flex justify-between items-center mt-4">
+                    <span className="text-green-700 font-bold">
+                      Rs. {product.price.toLocaleString()}/{product.unit}
+                    </span>
+                    <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                      Qty: {product.quantity}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <ProductPreviewModal />
+    </>
   );
 };
 
