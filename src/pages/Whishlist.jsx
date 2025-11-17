@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
 const Wishlist = () => {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
-    let im;
+  const { openPreview, ProductPreviewModal } = useProductPreview();
   useEffect(() => {
     fetchWishlist();
   }, []);
 
   const fetchWishlist = async () => {
     try {
-       
       setLoading(true);
       const response = await fetch(
         "https://agrofarm-vd8i.onrender.com/api/wishlist/my-wishlist",
@@ -85,7 +85,7 @@ const Wishlist = () => {
 
   const addToCart = async (productId, quantity = 1) => {
     try {
-        console.log("imageURL:", im);
+      console.log("imageURL:", im);
       const response = await fetch(
         "https://agrofarm-vd8i.onrender.com/api/wishlist/addtocart",
         {
@@ -127,74 +127,78 @@ const Wishlist = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold text-gray-800">My Wishlist</h1>
-        <button
-          onClick={emptyWishlist}
-          className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-lg shadow"
-        >
-          Clear All
-        </button>
-      </div>
+    <>
+      <div className="container mx-auto px-4 py-10">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+          <h1 className="text-3xl font-bold text-gray-800">My Wishlist</h1>
+          <button
+            onClick={emptyWishlist}
+            className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-lg shadow"
+          >
+            Clear All
+          </button>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {wishlistItems.map((item) => {
-          const product = item.productId || {};
-          const firstImage = product.images?.[0] || "/placeholder-product.jpg";
-            im=firstImage;
-          return (
-            <div
-              key={item._id}
-              className="bg-white rounded-xl shadow hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col"
-            >
-              <div className="bg-gray-100 h-48 w-full overflow-hidden">
-                <img
-                  src={firstImage}
-                  alt={product.name}
-                  className="w-full h-full object-cover rounded-t-xl"
-                />
-              </div>
-
-              <div className="p-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {product.name}
-                  </h3>
-                  <p className="text-green-600 font-medium">
-                    ${product.price} per {product.unit}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Supplier: {product.upLoadedBy?.uploaderName || "Unknown"}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Added on: {new Date(item.addedAt).toLocaleDateString()}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Available: {product.isAvailable ? "Yes" : "No"}
-                  </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {wishlistItems.map((item) => {
+            const product = item.productId || {};
+            const firstImage =
+              product.images?.[0] || "/placeholder-product.jpg";
+            return (
+              <div
+                key={item._id}
+                className="bg-white rounded-xl shadow hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col"
+              >
+                <div className="bg-gray-100 h-48 w-full overflow-hidden">
+                  <img
+                    src={firstImage}
+                    alt={product.name}
+                    className="h-full w-full cursor-zoom-in object-cover rounded-t-xl"
+                    onClick={() => openPreview(product)}
+                  />
                 </div>
 
-                <div className="flex justify-between items-center mt-4">
-                  <button
-                    onClick={() => removeItemFromWishlist(product._id)}
-                    className="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Remove
-                  </button>
-                  <button
-                    onClick={() => addToCart(product._id, 1)}
-                    className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg"
-                  >
-                    Add to Cart
-                  </button>
+                <div className="p-4 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {product.name}
+                    </h3>
+                    <p className="text-green-600 font-medium">
+                      ${product.price} per {product.unit}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Supplier: {product.upLoadedBy?.uploaderName || "Unknown"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Added on: {new Date(item.addedAt).toLocaleDateString()}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Available: {product.isAvailable ? "Yes" : "No"}
+                    </p>
+                  </div>
+
+                  <div className="flex justify-between items-center mt-4">
+                    <button
+                      onClick={() => removeItemFromWishlist(product._id)}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={() => addToCart(product._id, 1)}
+                      className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded-lg"
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+      <ProductPreviewModal />
+    </>
   );
 };
 

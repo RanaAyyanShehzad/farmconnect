@@ -1,11 +1,12 @@
 // AuthModal.jsx
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setUser } from "../features/userSlice";
 import { toast } from "react-toastify";
-import { ImageMinus } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { fetchProfileForRole } from "../services/profileService";
 
 const API_MAP = {
   Farmer: "https://agrofarm-vd8i.onrender.com/api/farmers",
@@ -24,26 +25,10 @@ const inputVariants = {
   visible: { opacity: 1, x: 0 },
   exit: { opacity: 0, x: 20 },
 };
-const fetchProfileData = async (role) => {
-  try {
-    const response = await fetch(
-      `https://agrofarm-vd8i.onrender.com/api/${role}/me`,
-      { credentials: "include" }
-    );
-
-    if (!response.ok) throw new Error("Failed to fetch profile data");
-
-    const data = await response.json();
-    const { name, email, phone, address, img } = data.user;
-    return { name, img };
-  } catch (error) {
-    toast.error(error.message);
-  }
-};
-
 const AuthModal = ({ isOpen, onClose }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [isSignup, setIsSignup] = useState(false);
   const [role, setRole] = useState("Farmer");
   const [formData, setFormData] = useState({
@@ -149,24 +134,20 @@ const AuthModal = ({ isOpen, onClose }) => {
         );
         setStep("otp");
       } else {
-        const fullMessage = data.message || "";
-        // const name = fullMessage.replace("Welcome back, ", "").trim();
-        if (role === "Farmer") {
-          const { name, img } = await  fetchProfileData("farmers");
-          dispatch(setUser({ name, img }));
-        } else if (role === "Buyer") {
-          const { name, img } =await fetchProfileData("buyers");
-          dispatch(setUser({ name, img }));
-        } else if (role === "Supplier") {
-          const { name, img } =await fetchProfileData("suppliers");
-          dispatch(setUser({ name, img }));
+        const normalizedRole = role.toLowerCase();
+        try {
+          const profile = await fetchProfileForRole(normalizedRole);
+          dispatch(setUser({ name: profile.name, img: profile.img }));
+        } catch (profileError) {
+          toast.error(profileError.message);
         }
+        login(normalizedRole);
 
         setSuccessMessage("✅ Logged in successfully!");
         setTimeout(() => {
           onClose();
-          if (role === "Farmer") navigate("/farmer");
-          else if (role === "Buyer") navigate("/buyer");
+          if (normalizedRole === "farmer") navigate("/farmer");
+          else if (normalizedRole === "buyer") navigate("/buyer");
           else navigate("/supplier");
         }, 1500);
       }

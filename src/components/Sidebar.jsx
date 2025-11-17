@@ -2,13 +2,18 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
-
+import LanguageToggle from "./LanguageToggle";
+import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
+import { useTranslation } from "../hooks/useTranslation";
 
 function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
+  const weather = useWeatherDisplay();
+  const weatherLabel =
+    weather.status === "loading" ? "..." : weather.temperature;
+  const { t } = useTranslation();
   const handleLogout = async () => {
     try {
-     
       const response = await fetch(
         "https://agrofarm-vd8i.onrender.com/api/farmers/logout",
         { method: "GET", credentials: "include" }
@@ -106,71 +111,75 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
             </svg>
           </div>
           <div className="ml-3">
-            <p className="text-white font-medium">Welcome back</p>
-            <p className="text-green-200 text-sm">Farmer Account</p>
+            <p className="text-white font-medium">{t("nav.welcome")}</p>
+            <p className="text-green-200 text-sm">{t("nav.account.farmer")}</p>
           </div>
+        </div>
+
+        <div className="px-6 py-4 border-b border-green-600">
+          <LanguageToggle direction="row" className="justify-between" />
         </div>
 
         {/* Navigation */}
         <div className="px-3 py-4 space-y-1">
           <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mb-2">
-            Main Menu
+            {t("nav.section.main")}
           </p>
           <NavItem to="" icon="grid" active={location.pathname === "/"}>
-            Dashboard
+            {t("nav.dashboard")}
           </NavItem>
           <NavItem
             to="products"
             icon="plant"
             active={location.pathname === "/products"}
           >
-            My Products
+            {t("nav.products")}
           </NavItem>
           <NavItem
             to="orders"
             icon="shopping-cart"
             active={location.pathname === "/orders"}
           >
-            Orders
+            {t("nav.orders")}
           </NavItem>
           <NavItem
             to="weather"
             icon="cloud-rain"
             active={location.pathname === "/weather"}
           >
-            Weather Alerts
+            {t("nav.weather")}
           </NavItem>
           <NavItem
             to="farmerProducts"
             icon="search"
             active={location.pathname === "/browse-products"}
           >
-            Browse Products
+            {t("nav.browse")}
           </NavItem>
           <NavItem
             to="cart"
             icon="shopping-cart"
             active={location.pathname === "/cart"}
           >
-            Cart
+            {t("nav.cart")}
           </NavItem>
           <NavItem
             to="wishlist"
             icon="heart"
             active={location.pathname === "/wishlist"}
           >
-            Wishlist
+            {t("nav.wishlist")}
           </NavItem>
           <NavItem
             to="myorders"
             icon="shopping-cart"
             active={location.pathname === "/myorders"}
           >
-            My Orders
+            {t("nav.myOrders")}
           </NavItem>
 
           <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mt-6 mb-2">
-            Other
+            {t("nav.section.other")}
           </p>
 
           <NavItem
@@ -178,20 +187,19 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
             icon="profile"
             active={location.pathname === "/farmerprofile"}
           >
-            Profile
+            {t("nav.profile")}
           </NavItem>
           <NavItem
             onClick={handleLogout}
             to="/"
-
             icon="logout"
             active={location.pathname === "/reports"}
-            
           >
-            Logout
+            {t("nav.logout")}
           </NavItem>
         </div>
 
+        {/* Weather widget at bottom */}
         {/* Weather widget at bottom */}
         <div className="mt-auto px-4 py-3 bg-green-800 text-white">
           <div className="flex items-center justify-between">
@@ -210,8 +218,11 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
                 />
               </svg>
               <div>
-                <p className="text-xl font-bold">28°C</p>
-                <p className="text-xs text-green-200">Sunny</p>
+                <p className="text-xl font-bold">{weatherLabel}</p>
+                <p className="text-xs text-green-200">{weather.description}</p>
+                {weather.city && (
+                  <p className="text-[10px] text-green-200">{weather.city}</p>
+                )}
               </div>
             </div>
             <p className="text-sm text-green-200">Today</p>
@@ -395,7 +406,6 @@ function NavItem({ to, icon, active, children }) {
   return (
     <Link
       to={to}
-      
       className={`flex items-center px-3 py-3 rounded-lg overflow-y-auto scrollbar-hide transition duration-150 ${
         active
           ? "bg-green-500 text-white font-medium shadow-md"

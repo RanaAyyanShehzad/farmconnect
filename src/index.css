@@ -18,3 +18,21 @@
     animation: fade-in 0.3s ease-out;
   }
 }
+
+.goog-te-banner-frame.skiptranslate,
+.goog-te-gadget-icon {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+#google_translate_element,
+.goog-te-gadget {
+  display: none !important;
+}
+
+html[dir="rtl"] body {
+  direction: rtl;
+}

@@ -1,8 +1,15 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import LanguageToggle from "./LanguageToggle";
+import { useTranslation } from "../hooks/useTranslation";
+import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 
 function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
+  const { t } = useTranslation();
+  const weather = useWeatherDisplay();
+  const weatherLabel =
+    weather.status === "loading" ? "..." : weather.temperature;
 
   return (
     <>
@@ -86,43 +93,49 @@ function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
             </svg>
           </div>
           <div className="ml-3">
-            <p className="text-white font-medium">Welcome back</p>
-            <p className="text-green-200 text-sm">Supplier Account</p>
+            <p className="text-white font-medium">{t("nav.welcome")}</p>
+            <p className="text-green-200 text-sm">
+              {t("nav.account.supplier")}
+            </p>
           </div>
+        </div>
+
+        <div className="px-6 py-4 border-b border-green-600">
+          <LanguageToggle direction="row" className="justify-between" />
         </div>
 
         {/* Navigation */}
         <div className="px-3 py-4 space-y-1">
           <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mb-2">
-            Main Menu
+            {t("nav.section.main")}
           </p>
           <NavItem to="" icon="grid" active={location.pathname === "/"}>
-            Dashboard
+            {t("nav.dashboard")}
           </NavItem>
           <NavItem
             to="products"
             icon="plant"
             active={location.pathname === "/products"}
           >
-            My Products
+            {t("nav.products")}
           </NavItem>
           <NavItem
             to="orders"
             icon="shopping-cart"
             active={location.pathname === "/orders"}
           >
-            Orders
+            {t("nav.orders")}
           </NavItem>
           <NavItem
             to="weather"
             icon="cloud-rain"
             active={location.pathname === "/weather"}
           >
-            Weather Alerts
+            {t("nav.weather")}
           </NavItem>
 
           <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mt-6 mb-2">
-            Other
+            {t("nav.section.other")}
           </p>
 
           <NavItem
@@ -130,14 +143,14 @@ function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
             icon="profile"
             active={location.pathname === "/profile"}
           >
-            Profile
+            {t("nav.profile")}
           </NavItem>
           <NavItem
             to="/"
             icon="logout"
             active={location.pathname === "/reports"}
           >
-            Logout
+            {t("nav.logout")}
           </NavItem>
         </div>
 
@@ -159,8 +172,11 @@ function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
                 />
               </svg>
               <div>
-                <p className="text-xl font-bold">28°C</p>
-                <p className="text-xs text-green-200">Sunny</p>
+                <p className="text-xl font-bold">{weatherLabel}</p>
+                <p className="text-xs text-green-200">{weather.description}</p>
+                {weather.city && (
+                  <p className="text-[10px] text-green-200">{weather.city}</p>
+                )}
               </div>
             </div>
             <p className="text-sm text-green-200">Today</p>
