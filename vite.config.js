@@ -8,4 +8,5 @@ export default defineConfig({
     host: "0.0.0.0", // or 'localhost' or your IP address
     port: 3000, // change to any port you want
   },
+  base: "./",
 });
