@@ -18,6 +18,7 @@ function Dashboard() {
     data: weatherData,
     city,
     status,
+    alerts = [],
   } = useSelector((state) => state.weather);
   const fallbackWeather = useWeatherDisplay();
   const weatherLoading = status === "loading";
@@ -343,7 +344,9 @@ function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-800">
               {t("dashboard.weatherForecast")}
             </h2>
-            <span className="text-sm text-gray-500">Islamabad Region</span>
+            <span className="text-sm text-gray-500">
+              {weatherLocation || t("weather.city")}
+            </span>
           </div>
           <div className="space-y-4">
             {/* Today */}
@@ -369,67 +372,69 @@ function Dashboard() {
                 <div>
                   <div className="font-medium">{t("common.today")}</div>
                   <div className="text-sm text-gray-500">
-                    {t("dashboard.weatherStatus")}
+                    {weatherDescription}
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xl font-bold">28°C</div>
-                <div className="text-sm text-gray-500">13°C</div>
-              </div>
-            </motion.div>
-
-            {/* Tomorrow */}
-            <motion.div
-              className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
-              variants={listItemVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, amount: 0.3 }}
-            >
-              <div className="flex items-center space-x-3">
-                <svg
-                  className="w-10 h-10 text-gray-400"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" />
-                </svg>
-                <div>
-                  <div className="font-medium">{t("common.tomorrow")}</div>
-                  <div className="text-sm text-gray-500">Partly Cloudy</div>
+                <div className="text-xl font-bold">{weatherTemperature}</div>
+                <div className="text-sm text-gray-500">
+                  {weatherData?.humidity != null
+                    ? `${weatherData.humidity}% ${
+                        t("weather.humidity") || "Humidity"
+                      }`
+                    : "—"}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-xl font-bold">25°C</div>
-                <div className="text-sm text-gray-500">12°C</div>
-              </div>
             </motion.div>
 
-            {/* Weather Alert */}
-            <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg
-                    className="h-5 w-5 text-yellow-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
+            {/* Weather Alerts (real-time from API) */}
+            {/* <div className="mt-4 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800">
+                {t("weather.alerts")}
+              </h3>
+              {alerts && alerts.length > 0 ? (
+                alerts.map((alert, index) => (
+                  <motion.div
+                    key={index}
+                    className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded"
+                    variants={listItemVariants}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, amount: 0.3 }}
                   >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-yellow-700">
-                    Light rain expected on Thursday. Consider covering sensitive
-                    crops.
-                  </p>
-                </div>
-              </div>
-            </div>
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg
+                          className="h-5 w-5 text-yellow-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-yellow-800">
+                          {alert.alert}
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          {t("weather.city")}: {alert.city} —{" "}
+                          {alert.description}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">
+                  {t("weather.noAlertsAvailable")}
+                </p>
+              )}
+            </div> */}
           </div>
         </div>
       </div>
