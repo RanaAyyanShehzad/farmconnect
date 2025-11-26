@@ -153,35 +153,6 @@ function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
             {t("nav.logout")}
           </NavItem>
         </div>
-
-        {/* Weather widget at bottom */}
-        <div className="mt-auto px-4 py-3 bg-green-800 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <svg
-                className="w-8 h-8 text-yellow-400 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
-                />
-              </svg>
-              <div>
-                <p className="text-xl font-bold">{weatherLabel}</p>
-                <p className="text-xs text-green-200">{weather.description}</p>
-                {weather.city && (
-                  <p className="text-[10px] text-green-200">{weather.city}</p>
-                )}
-              </div>
-            </div>
-            <p className="text-sm text-green-200">Today</p>
-          </div>
-        </div>
       </div>
     </>
   );
