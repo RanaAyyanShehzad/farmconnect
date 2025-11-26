@@ -406,7 +406,7 @@ function NavItem({ to, icon, active, children }) {
   return (
     <Link
       to={to}
-      className={`flex items-center px-3 py-3 rounded-lg overflow-y-auto scrollbar-hide transition duration-150 ${
+      className={`flex items-center px-3 py-3 rounded-lg overflow-y-auto scrollbar-hide transition-all duration-200 ease-out hover:-translate-y-0.5 ${
         active
           ? "bg-green-500 text-white font-medium shadow-md"
           : "text-green-100 hover:bg-green-600 hover:text-white"

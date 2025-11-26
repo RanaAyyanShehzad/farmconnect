@@ -83,22 +83,6 @@ function BuyerHeader({ sidebarOpen, setSidebarOpen }) {
           <div className="flex items-center space-x-3 ml-auto">
             <LanguageToggle />
             {/* Weather */}
-            <span className="hidden md:flex items-center text-white">
-              <svg
-                className="w-5 h-5 mr-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
-                />
-              </svg>
-              <span title={weather.description}>{weatherLabel}</span>
-            </span>
 
             {/* Notifications */}
             <div className="relative">

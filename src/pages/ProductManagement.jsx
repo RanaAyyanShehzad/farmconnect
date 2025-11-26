@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { motion } from "framer-motion";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
 const ProductManagement = () => {
@@ -20,6 +21,14 @@ const ProductManagement = () => {
     images: [],
   });
   const [imagePreview, setImagePreview] = useState(null);
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.4, ease: "easeOut" },
+    },
+  };
   const { openPreview, ProductPreviewModal } = useProductPreview();
 
   // Constants
@@ -633,11 +642,22 @@ const ProductManagement = () => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <motion.div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+          >
             {products.map((product) => (
-              <div
+              <motion.div
                 key={product._id}
-                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300 transform hover:-translate-y-1 group relative"
+                className="bg-white rounded-xl shadow-md overflow-hidden group relative"
+                variants={cardVariants}
+                whileHover={{
+                  y: -6,
+                  scale: 1.01,
+                  boxShadow: "0 20px 35px rgba(34,197,94,0.15)",
+                }}
               >
                 <div className="relative h-48 bg-gray-100 overflow-hidden">
                   {product.images?.[0] ? (
@@ -736,9 +756,9 @@ const ProductManagement = () => {
                     </span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
       <ProductPreviewModal />
