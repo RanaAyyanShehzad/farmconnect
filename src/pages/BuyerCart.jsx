@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
@@ -21,6 +22,14 @@ function BuyerCart() {
 
   const navigate = useNavigate();
   const { openPreview, ProductPreviewModal } = useProductPreview();
+  const cardVariants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.3, ease: "easeOut" },
+    },
+  };
 
   const handlePreview = (item) => {
     if (!item) return;
@@ -343,9 +352,12 @@ function BuyerCart() {
                 <div className="p-6">
                   <div className="divide-y divide-gray-100">
                     {cartItems.map((item) => (
-                      <div
+                      <motion.div
                         key={item._id}
                         className="py-6 flex flex-col sm:flex-row gap-4"
+                        variants={cardVariants}
+                        initial="hidden"
+                        animate="visible"
                       >
                         <div className="w-full sm:w-32 h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                           {item.images?.[0] ? (
@@ -450,7 +462,7 @@ function BuyerCart() {
                             </div>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 </div>

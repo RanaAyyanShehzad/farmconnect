@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { motion } from "framer-motion";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
 const Wishlist = () => {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const { openPreview, ProductPreviewModal } = useProductPreview();
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.4, ease: "easeOut" },
+    },
+  };
   useEffect(() => {
     fetchWishlist();
   }, []);
@@ -139,15 +148,26 @@ const Wishlist = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+        >
           {wishlistItems.map((item) => {
             const product = item.productId || {};
             const firstImage =
               product.images?.[0] || "/placeholder-product.jpg";
             return (
-              <div
+              <motion.div
                 key={item._id}
-                className="bg-white rounded-xl shadow hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col"
+                className="bg-white rounded-xl shadow overflow-hidden flex flex-col"
+                variants={cardVariants}
+                whileHover={{
+                  y: -6,
+                  scale: 1.01,
+                  boxShadow: "0 20px 35px rgba(34,197,94,0.15)",
+                }}
               >
                 <div className="bg-gray-100 h-48 w-full overflow-hidden">
                   <img
@@ -192,10 +212,10 @@ const Wishlist = () => {
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </div>
       <ProductPreviewModal />
     </>

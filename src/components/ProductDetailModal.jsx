@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
 
 const initialSentiment = {
   positive: 0,
@@ -47,39 +48,52 @@ function ProductDetailModal({ product, isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen || !productId) return;
 
-    let isMounted = true;
+    const controller = new AbortController();
     const fetchReviews = async () => {
       setLoading(true);
       setError(null);
       try {
         const response = await fetch(
-          `https://agrofarm-vd8i.onrender.com/api/review/get-review/${productId}`
+          `https://agrofarm-vd8i.onrender.com/api/review/get-review/${productId}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+          }
         );
         if (!response.ok) {
-          throw new Error("Unable to load reviews right now.");
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(
+            payload.message || "Unable to load reviews right now."
+          );
         }
         const data = await response.json();
-        if (!isMounted) return;
         setReviews(data.reviews || []);
         setAverageRating(data.averageRating || 0);
         setSentimentStats(data.sentimentStats || initialSentiment);
       } catch (err) {
-        if (!isMounted) return;
+        if (controller.signal.aborted) return;
         setError(err.message || "Failed to fetch reviews.");
         setReviews([]);
         setAverageRating(0);
         setSentimentStats(initialSentiment);
       } finally {
-        if (isMounted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchReviews();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => controller.abort();
   }, [isOpen, productId]);
+
+  const normalizedRating =
+    typeof averageRating === "number"
+      ? averageRating
+      : Number.parseFloat(averageRating) || 0;
 
   const displayImage = useMemo(() => {
     if (!product) return null;
@@ -101,22 +115,23 @@ function ProductDetailModal({ product, isOpen, onClose }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-6"
           onClick={close}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
+            initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl bg-gradient-to-br from-white via-green-50/40 to-white shadow-[0_30px_80px_-40px_rgba(34,197,94,0.8)] border border-white/60"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between border-b border-white/60 bg-white/60 px-6 py-4 backdrop-blur">
               <div>
-                <p className="text-sm uppercase tracking-wide text-gray-400">
+                <p className="text-xs uppercase tracking-[0.3em] text-green-500">
                   Product preview
                 </p>
-                <h2 className="text-2xl font-semibold text-gray-900">
+                <h2 className="text-3xl font-semibold text-gray-900 mt-1">
                   {product.name || "Unnamed product"}
                 </h2>
               </div>
@@ -142,7 +157,12 @@ function ProductDetailModal({ product, isOpen, onClose }) {
 
             <div className="grid gap-6 px-6 py-6 md:grid-cols-2">
               <div className="space-y-4">
-                <div className="overflow-hidden rounded-xl bg-gray-50">
+                <motion.div
+                  className="overflow-hidden rounded-2xl bg-gray-50 shadow-inner"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
                   {displayImage ? (
                     <img
                       src={displayImage}
@@ -167,9 +187,14 @@ function ProductDetailModal({ product, isOpen, onClose }) {
                       </svg>
                     </div>
                   )}
-                </div>
+                </motion.div>
 
-                <div className="rounded-xl bg-gray-50 p-4">
+                <motion.div
+                  className="rounded-2xl bg-white p-4 shadow-lg border border-green-50"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                >
                   <h3 className="text-lg font-semibold text-gray-800">
                     Details
                   </h3>
@@ -218,24 +243,29 @@ function ProductDetailModal({ product, isOpen, onClose }) {
                       {product.description}
                     </p>
                   )}
-                </div>
+                </motion.div>
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-xl border border-gray-100 p-4">
+                <motion.div
+                  className="rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
                   <div className="flex items-end gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Average rating</p>
                       <p className="text-4xl font-bold text-gray-900">
-                        {averageRating?.toFixed(1)}
+                        {normalizedRating.toFixed(1)}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {ratingLabels[Math.round(averageRating) - 1] || "—"}
+                        {ratingLabels[Math.round(normalizedRating) - 1] || "—"}
                       </p>
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1 text-lg">
-                        {renderStars(averageRating)}
+                        {renderStars(normalizedRating)}
                       </div>
                       <p className="text-xs text-gray-500">
                         {reviews.length} review{reviews.length === 1 ? "" : "s"}
@@ -271,15 +301,23 @@ function ProductDetailModal({ product, isOpen, onClose }) {
                       </div>
                     ))}
                   </div>
-                </div>
+                </motion.div>
 
-                <div className="rounded-xl border border-gray-100 p-4">
+                <motion.div
+                  className="rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                >
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">
                       Reviews
                     </h3>
                     {loading && (
-                      <span className="text-xs text-gray-500">Loading…</span>
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Loading…
+                      </span>
                     )}
                   </div>
 
@@ -293,11 +331,14 @@ function ProductDetailModal({ product, isOpen, onClose }) {
                     </p>
                   )}
 
-                  <div className="mt-4 space-y-3 max-h-72 overflow-y-auto pr-2">
+                  <div className="mt-4 space-y-3 max-h-72 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-green-200">
                     {reviews.map((review) => (
-                      <div
+                      <motion.div
                         key={review._id || review.id}
-                        className="rounded-lg border border-gray-100 p-3"
+                        className="rounded-lg border border-gray-100 p-3 bg-white shadow-sm"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2 }}
                       >
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-gray-800">
@@ -320,10 +361,10 @@ function ProductDetailModal({ product, isOpen, onClose }) {
                             {new Date(review.createdAt).toLocaleDateString()}
                           </p>
                         )}
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
-                </div>
+                </motion.div>
               </div>
             </div>
           </motion.div>

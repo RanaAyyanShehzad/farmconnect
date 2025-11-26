@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { motion } from "framer-motion";
 import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "../features/userSlice";
 import { useTranslation } from "../hooks/useTranslation";
@@ -27,6 +28,28 @@ function Dashboard() {
   const weatherDescription =
     weatherData?.description || fallbackWeather.description || "—";
   const weatherLocation = city || fallbackWeather.city || "";
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.95 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: { duration: 0.4, ease: "easeOut" },
+    },
+    hover: {
+      y: -6,
+      scale: 1.01,
+      boxShadow: "0 20px 40px rgba(16, 185, 129, 0.15)",
+    },
+  };
+  const listItemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.3, ease: "easeOut" },
+    },
+  };
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -83,8 +106,13 @@ function Dashboard() {
 
   function DashboardCard({ title, value, subtitle, icon, bgColor, textColor }) {
     return (
-      <div
-        className={`${bgColor} ${textColor} rounded-lg shadow-xl transform transition duration-300 ease-in-out hover:shadow-2xl hover:scale-105 p-6`}
+      <motion.div
+        className={`${bgColor} ${textColor} rounded-xl p-6`}
+        variants={cardVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.3 }}
+        whileHover="hover"
       >
         <div className="flex items-center justify-between">
           <div>
@@ -92,11 +120,21 @@ function Dashboard() {
             <p className="text-2xl font-bold mt-1">
               {loading ? t("common.loading") : value}
             </p>
-            {subtitle && <p className="text-xs mt-1 opacity-70">{subtitle}</p>}
+            {subtitle && (
+              <p className="text-xs mt-1 opacity-70 transition-colors">
+                {subtitle}
+              </p>
+            )}
           </div>
-          <div className="ml-4">{icon}</div>
+          <motion.div
+            className="ml-4"
+            animate={{ rotate: [0, 2, -2, 0] }}
+            transition={{ duration: 6, repeat: Infinity }}
+          >
+            {icon}
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -251,9 +289,12 @@ function Dashboard() {
                   </tr>
                 ) : recentOrders.length > 0 ? (
                   recentOrders.map((order) => (
-                    <tr
+                    <motion.tr
                       key={order._id}
                       className="text-gray-700 border-b-2 border-b-gray-300"
+                      variants={listItemVariants}
+                      initial="hidden"
+                      animate="visible"
                     >
                       <td className="px-4 py-3">#{order._id.slice(-6)}</td>
                       <td className="px-4 py-3">
@@ -278,14 +319,18 @@ function Dashboard() {
                       <td className="px-4 py-3 font-semibold">
                         ₨ {order.totalPrice.toLocaleString()}
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))
                 ) : (
-                  <tr>
+                  <motion.tr
+                    variants={listItemVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
                     <td colSpan="5" className="px-4 py-3 text-center">
                       {t("dashboard.noOrders")}
                     </td>
-                  </tr>
+                  </motion.tr>
                 )}
               </tbody>
             </table>
@@ -302,7 +347,13 @@ function Dashboard() {
           </div>
           <div className="space-y-4">
             {/* Today */}
-            <div className="flex items-center justify-between bg-sky-50 p-3 rounded-lg">
+            <motion.div
+              className="flex items-center justify-between bg-sky-50 p-3 rounded-lg"
+              variants={listItemVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+            >
               <div className="flex items-center space-x-3">
                 <svg
                   className="w-10 h-10 text-yellow-500"
@@ -326,10 +377,16 @@ function Dashboard() {
                 <div className="text-xl font-bold">28°C</div>
                 <div className="text-sm text-gray-500">13°C</div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Tomorrow */}
-            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+            <motion.div
+              className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
+              variants={listItemVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+            >
               <div className="flex items-center space-x-3">
                 <svg
                   className="w-10 h-10 text-gray-400"
@@ -347,7 +404,7 @@ function Dashboard() {
                 <div className="text-xl font-bold">25°C</div>
                 <div className="text-sm text-gray-500">12°C</div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Weather Alert */}
             <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">

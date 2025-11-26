@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { motion } from "framer-motion";
 import "react-toastify/dist/ReactToastify.css";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
@@ -26,6 +27,14 @@ const FarmerProducts = () => {
   ];
 
   const { openPreview, ProductPreviewModal } = useProductPreview();
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.4, ease: "easeOut" },
+    },
+  };
 
   // Function to render star ratings
   const renderStarRating = (rating) => {
@@ -287,11 +296,22 @@ const FarmerProducts = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <motion.div
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.2 }}
+            >
               {filteredProducts.map((product) => (
-                <div
+                <motion.div
                   key={product._id}
-                  className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300 transform hover:-translate-y-1 flex flex-col"
+                  className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col"
+                  variants={cardVariants}
+                  whileHover={{
+                    y: -8,
+                    scale: 1.01,
+                    boxShadow: "0 20px 35px rgba(34,197,94,0.15)",
+                  }}
                 >
                   <div className="relative h-48 bg-gray-100 overflow-hidden">
                     {product.images?.[0] ? (
@@ -407,9 +427,9 @@ const FarmerProducts = () => {
                       </button>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
         </div>
       </div>

@@ -79,6 +79,14 @@ const LandingPage = () => {
       },
     },
   };
+  const sectionReveal = {
+    hidden: { opacity: 0, y: 40 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.7, ease: "easeOut" },
+    },
+  };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 30 },
@@ -324,9 +332,13 @@ const LandingPage = () => {
       </section>
 
       {/* About Section */}
-      <section
+      <motion.section
         id="about"
         className="py-28 text-center bg-white relative overflow-hidden"
+        variants={sectionReveal}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.3 }}
       >
         <div className="absolute -top-20 -left-20 w-40 h-40 bg-green-100 rounded-full opacity-50" />
         <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-green-100 rounded-full opacity-50" />
@@ -444,7 +456,7 @@ const LandingPage = () => {
             </motion.div>
           </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Our Vision & Our Mission Section */}
       <section className="py-28 px-4 bg-gradient-to-b from-gray-50 to-white">
