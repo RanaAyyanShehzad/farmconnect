@@ -165,8 +165,14 @@ const ProductManagement = () => {
 
   // Handle deleting a product
   const handleDeleteProduct = async (productId) => {
-    if (!window.confirm("Are you sure you want to delete this product?"))
+    const confirmMessage =
+      "Are you sure you want to delete this product?\n\n" +
+      "Note: Products with active orders (processing, confirmed, or shipped) cannot be deleted.\n\n" +
+      "This action will remove the product from listings, but existing orders will remain intact.";
+
+    if (!window.confirm(confirmMessage)) {
       return;
+    }
 
     try {
       setLoading(true);
@@ -180,12 +186,21 @@ const ProductManagement = () => {
         },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.message || "Failed to delete product");
-        throw new Error(errorData.message || "Failed to delete product");
-      }
       const data = await response.json();
+
+      if (!response.ok) {
+        // Check if it's an active order error
+        if (response.status === 400 && data.message?.includes("active order")) {
+          toast.error(data.message, {
+            autoClose: 6000,
+            style: { backgroundColor: "#fee2e2", color: "#991b1b" },
+          });
+        } else {
+          toast.error(data.message || "Failed to delete product");
+        }
+        throw new Error(data.message || "Failed to delete product");
+      }
+
       toast.success(data.message || "Product deleted successfully");
       await fetchMyProducts();
     } catch (err) {
@@ -662,11 +677,22 @@ const ProductManagement = () => {
                 }}
               >
                 <div className="relative h-48 bg-gray-100 overflow-hidden">
+                  {(product.isDeleted || !product.isActive) && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 z-10 flex items-center justify-center">
+                      <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold">
+                        DELETED
+                      </span>
+                    </div>
+                  )}
                   {product.images?.[0] ? (
                     <img
                       src={product.images[0]}
                       alt={product.name}
-                      className="w-full h-full cursor-zoom-in object-cover transition duration-300 group-hover:scale-105"
+                      className={`w-full h-full cursor-zoom-in object-cover transition duration-300 group-hover:scale-105 ${
+                        product.isDeleted || !product.isActive
+                          ? "opacity-50"
+                          : ""
+                      }`}
                       onClick={() => openPreview(product)}
                     />
                   ) : (
@@ -714,8 +740,17 @@ const ProductManagement = () => {
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(product._id)}
-                        className="p-2 bg-white rounded-full shadow-md hover:bg-red-100 transition"
-                        title="Delete"
+                        disabled={product.isDeleted || !product.isActive}
+                        className={`p-2 bg-white rounded-full shadow-md transition ${
+                          product.isDeleted || !product.isActive
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:bg-red-100"
+                        }`}
+                        title={
+                          product.isDeleted || !product.isActive
+                            ? "Already deleted"
+                            : "Delete"
+                        }
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"

@@ -25,68 +25,247 @@ const inputVariants = {
   visible: { opacity: 1, x: 0 },
   exit: { opacity: 0, x: 20 },
 };
+
+const INITIAL_FORM_DATA = Object.freeze({
+  email: "",
+  password: "",
+  name: "",
+  phone: "",
+  address: "",
+});
+
+const NAME_REGEX = /^[a-zA-Z\s]+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#\-_.+])[A-Za-z\d@$!%*?&#\-_.+]{8,}$/;
+const PHONE_REGEX = /^\+92\d{10}$/;
+const OTP_REGEX = /^\d{6}$/;
+const LOCKOUT_NOTICE =
+  "Five failed login attempts lock your account for 30 minutes.";
+const getPasswordChecklist = (value = "") => ({
+  length: value.length >= 8,
+  lower: /[a-z]/.test(value),
+  upper: /[A-Z]/.test(value),
+  digit: /\d/.test(value),
+  special: /[@$!%*?&#\-_.+]/.test(value),
+});
+
 const AuthModal = ({ isOpen, onClose }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { login } = useAuth();
   const [isSignup, setIsSignup] = useState(false);
   const [role, setRole] = useState("Farmer");
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    name: "",
-    phone: "",
-    address: "",
-  });
+  const [formData, setFormData] = useState(() => ({ ...INITIAL_FORM_DATA }));
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState("auth"); // auth | otp | forgot | reset
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState({
+    auth: false,
+    reset: false,
+  });
+  const [lockoutMessage, setLockoutMessage] = useState("");
+
+  const clearFormFeedback = () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setLockoutMessage("");
+  };
+
+  const moveToStep = (nextStep) => {
+    setStep(nextStep);
+    setFieldErrors({});
+    clearFormFeedback();
+    if (nextStep === "auth") {
+      setOtp("");
+      setNewPassword("");
+    }
+  };
+
+  const validateField = (field, value, options = {}) => {
+    const targetField = options.aliasFor || field;
+    const rawValue = typeof value === "string" ? value : value ?? "";
+    const trimmedValue =
+      typeof rawValue === "string" ? rawValue.trim() : rawValue;
+
+    switch (targetField) {
+      case "name":
+        if (!trimmedValue) return "Name is required";
+        if (!NAME_REGEX.test(trimmedValue))
+          return "Name can only include letters and spaces";
+        return "";
+      case "email":
+        if (!trimmedValue) return "Email is required";
+        if (!EMAIL_REGEX.test(trimmedValue))
+          return "Enter a valid email address";
+        return "";
+      case "password":
+        if (!rawValue) return "Password is required";
+        if (options.enforceComplexity && !PASSWORD_REGEX.test(rawValue))
+          return "Password must be 8+ chars with upper, lower, digit, and @$!%*?&#-_.+";
+        return "";
+      case "phone":
+        if (!trimmedValue) return "Phone number is required";
+        if (!PHONE_REGEX.test(trimmedValue))
+          return "Phone must match +92XXXXXXXXXX";
+        return "";
+      case "address":
+        if (!trimmedValue) return "Address is required";
+        return "";
+      case "otp":
+        if (!trimmedValue) return "OTP is required";
+        if (!OTP_REGEX.test(trimmedValue))
+          return "Enter the 6-digit OTP sent to your email";
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  const runValidationForField = (field, value, options = {}) => {
+    const message = validateField(field, value, options);
+    setFieldErrors((prev) => ({ ...prev, [field]: message }));
+    return !message;
+  };
 
   if (!isOpen) return null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    clearFormFeedback();
     setFormData((prev) => ({ ...prev, [name]: value }));
+    const validationOptions =
+      name === "password" ? { enforceComplexity: isSignup } : undefined;
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: validateField(name, value, validationOptions),
+    }));
   };
 
-  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const handleOtpInput = (value) => {
+    clearFormFeedback();
+    setOtp(value);
+    setFieldErrors((prev) => ({
+      ...prev,
+      otp: validateField("otp", value),
+    }));
+  };
+
+  const handleNewPasswordInput = (value) => {
+    clearFormFeedback();
+    setNewPassword(value);
+    setFieldErrors((prev) => ({
+      ...prev,
+      newPassword: validateField("newPassword", value, {
+        enforceComplexity: true,
+        aliasFor: "password",
+      }),
+    }));
+  };
+
+  const handleCloseModal = () => {
+    moveToStep("auth");
+    setFormData({ ...INITIAL_FORM_DATA });
+    setIsSignup(false);
+    setShowPassword({ auth: false, reset: false });
+    onClose();
+  };
 
   const validateForm = () => {
     if (step === "forgot") {
-      if (!formData.email && !formData.phone) {
-        setErrorMessage("Email or phone is required");
+      if (!runValidationForField("email", formData.email)) {
+        setErrorMessage(
+          validateField("email", formData.email) || "Enter a valid email"
+        );
         return false;
       }
+
       return true;
     }
 
     if (step === "reset") {
-      if (!newPassword || newPassword.length < 6) {
-        setErrorMessage("Password must be at least 6 characters");
+      if (
+        !runValidationForField("otp", otp, {
+          aliasFor: "otp",
+        })
+      ) {
+        setErrorMessage(
+          validateField("otp", otp) || "Please enter the 6-digit OTP"
+        );
         return false;
       }
-      if (!otp || otp.length < 6) {
-        setErrorMessage("Please enter a valid OTP");
+
+      if (
+        !runValidationForField("newPassword", newPassword, {
+          enforceComplexity: true,
+          aliasFor: "password",
+        })
+      ) {
+        setErrorMessage(
+          validateField("password", newPassword, {
+            enforceComplexity: true,
+          }) || "Password does not meet the requirements"
+        );
         return false;
       }
+
       return true;
     }
 
-    if (!formData.email || !formData.password) {
-      setErrorMessage("Email and password are required");
-      return false;
+    if (step === "auth") {
+      if (!formData.email.trim()) {
+        const message = "Please provide email";
+        setFieldErrors((prev) => ({ ...prev, email: message }));
+        setErrorMessage(message);
+        return false;
+      }
+
+      if (!formData.password) {
+        const message = "Please provide password";
+        setFieldErrors((prev) => ({ ...prev, password: message }));
+        setErrorMessage(message);
+        return false;
+      }
+
+      if (!runValidationForField("email", formData.email)) {
+        setErrorMessage(
+          validateField("email", formData.email) || "Invalid email format"
+        );
+        return false;
+      }
+
+      if (isSignup) {
+        const signupFields = ["name", "phone", "address"];
+        for (const field of signupFields) {
+          if (!runValidationForField(field, formData[field])) {
+            setErrorMessage(
+              validateField(field, formData[field]) || "Invalid input"
+            );
+            return false;
+          }
+        }
+
+        if (
+          !runValidationForField("password", formData.password, {
+            enforceComplexity: true,
+          })
+        ) {
+          setErrorMessage(
+            validateField("password", formData.password, {
+              enforceComplexity: true,
+            }) || "Password does not meet the requirements"
+          );
+          return false;
+        }
+      }
+
+      return true;
     }
-    if (!validateEmail(formData.email)) {
-      setErrorMessage("Please enter a valid email address");
-      return false;
-    }
-    if (isSignup && (!formData.name || !formData.phone || !formData.address)) {
-      setErrorMessage("All fields are required for signup");
-      return false;
-    }
+
     return true;
   };
 
@@ -94,8 +273,7 @@ const AuthModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setErrorMessage("");
-    setSuccessMessage("");
+    clearFormFeedback();
     setLoading(true);
 
     try {
@@ -130,20 +308,29 @@ const AuthModal = ({ isOpen, onClose }) => {
 
       if (isSignup) {
         setSuccessMessage(
-          "✅ Registered successfully! Please verify your email."
+          "✅ Registered! Check your email for a 6-digit OTP (valid for 30 minutes)."
         );
-        setStep("otp");
+        moveToStep("otp");
       } else {
         const normalizedRole = role.toLowerCase();
         try {
           const profile = await fetchProfileForRole(normalizedRole);
-          dispatch(setUser({ name: profile.name, img: profile.img }));
+          dispatch(
+            setUser({
+              name: profile.name,
+              img: profile.img,
+              email: profile.email,
+              phone: profile.phone,
+              address: profile.address,
+            })
+          );
         } catch (profileError) {
           toast.error(profileError.message);
         }
         login(normalizedRole);
 
         setSuccessMessage("✅ Logged in successfully!");
+        setLockoutMessage("");
         setTimeout(() => {
           onClose();
           if (normalizedRole === "farmer") navigate("/farmer");
@@ -152,7 +339,15 @@ const AuthModal = ({ isOpen, onClose }) => {
         }, 1500);
       }
     } catch (err) {
-      setErrorMessage(err.message || "Server error");
+      const serverMessage = err.message || "Server error";
+      setErrorMessage(serverMessage);
+      if (serverMessage.toLowerCase().includes("lock")) {
+        setLockoutMessage(
+          "Account locked due to repeated failed attempts. Try again in 30 minutes."
+        );
+      } else {
+        setLockoutMessage("");
+      }
     } finally {
       setLoading(false);
     }
@@ -162,8 +357,7 @@ const AuthModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setErrorMessage("");
-    setSuccessMessage("");
+    clearFormFeedback();
     setLoading(true);
 
     try {
@@ -173,7 +367,6 @@ const AuthModal = ({ isOpen, onClose }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
-          phone: formData.phone,
         }),
       });
 
@@ -182,7 +375,7 @@ const AuthModal = ({ isOpen, onClose }) => {
         throw new Error(data.message || "Failed to send reset instructions");
 
       setSuccessMessage("📨 Reset instructions sent! Check your email/phone.");
-      setStep("reset");
+      moveToStep("reset");
     } catch (err) {
       setErrorMessage(err.message || "Failed to process request");
     } finally {
@@ -194,8 +387,7 @@ const AuthModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setErrorMessage("");
-    setSuccessMessage("");
+    clearFormFeedback();
     setLoading(true);
 
     try {
@@ -205,7 +397,6 @@ const AuthModal = ({ isOpen, onClose }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
-          phone: formData.phone,
           otp,
           newPassword,
         }),
@@ -217,7 +408,7 @@ const AuthModal = ({ isOpen, onClose }) => {
 
       setSuccessMessage("✅ Password reset successfully! You can now login.");
       setTimeout(() => {
-        setStep("auth");
+        moveToStep("auth");
         setIsSignup(false);
       }, 2000);
     } catch (err) {
@@ -228,9 +419,19 @@ const AuthModal = ({ isOpen, onClose }) => {
   };
 
   const handleVerifyOTP = async () => {
+    if (
+      !runValidationForField("otp", otp, {
+        aliasFor: "otp",
+      })
+    ) {
+      setErrorMessage(
+        validateField("otp", otp) || "Enter the 6-digit OTP sent to your email"
+      );
+      return;
+    }
+
+    clearFormFeedback();
     setLoading(true);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const res = await fetch(`${API_MAP[role]}/verify`, {
@@ -244,7 +445,7 @@ const AuthModal = ({ isOpen, onClose }) => {
 
       setSuccessMessage("✅ Email verified! Please log in.");
       setTimeout(() => {
-        setStep("auth");
+        moveToStep("auth");
         setIsSignup(false);
       }, 1500);
     } catch (err) {
@@ -255,9 +456,16 @@ const AuthModal = ({ isOpen, onClose }) => {
   };
 
   const handleResendOTP = async () => {
+    if (!runValidationForField("email", formData.email)) {
+      setErrorMessage(
+        validateField("email", formData.email) ||
+          "Enter the email used during signup"
+      );
+      return;
+    }
+
+    clearFormFeedback();
     setLoading(true);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const res = await fetch(`${API_MAP[role]}/resendOTP`, {
@@ -296,6 +504,7 @@ const AuthModal = ({ isOpen, onClose }) => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 * i }}
+                className="space-y-1"
               >
                 <input
                   type={field === "phone" ? "tel" : "text"}
@@ -304,13 +513,15 @@ const AuthModal = ({ isOpen, onClose }) => {
                     field === "name"
                       ? "Full Name"
                       : field === "phone"
-                      ? "Phone Number"
+                      ? "Phone Number (+92XXXXXXXXXX)"
                       : "Address"
                   }
                   value={formData[field]}
                   onChange={handleChange}
                   className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+                  aria-invalid={Boolean(fieldErrors[field])}
                 />
+                <InlineError message={fieldErrors[field]} />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -320,6 +531,7 @@ const AuthModal = ({ isOpen, onClose }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: isSignup ? 0.4 : 0.1 }}
+          className="space-y-1"
         >
           <input
             type="email"
@@ -328,25 +540,54 @@ const AuthModal = ({ isOpen, onClose }) => {
             value={formData.email}
             onChange={handleChange}
             className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+            aria-invalid={Boolean(fieldErrors.email)}
             required
           />
+          <InlineError message={fieldErrors.email} />
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: isSignup ? 0.5 : 0.2 }}
+          className="space-y-2"
         >
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={handleChange}
-            className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
-            required
-          />
+          <div className="relative">
+            <input
+              type={showPassword.auth ? "text" : "password"}
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full p-3 pr-12 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+              aria-invalid={Boolean(fieldErrors.password)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setShowPassword((prev) => ({ ...prev, auth: !prev.auth }))
+              }
+              className="absolute inset-y-0 right-3 flex items-center text-white/70 hover:text-white focus:outline-none"
+              aria-label={`${showPassword.auth ? "Hide" : "Show"} password`}
+            >
+              {showPassword.auth ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+          <InlineError message={fieldErrors.password} />
+          {isSignup && <PasswordChecklist password={formData.password} />}
         </motion.div>
+
+        {!isSignup && step === "auth" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.25 }}
+            className="text-xs text-amber-100/90 bg-amber-900/30 border border-amber-500/30 rounded-lg p-3"
+          >
+            {lockoutMessage || LOCKOUT_NOTICE}
+          </motion.div>
+        )}
 
         {!isSignup && (
           <motion.div
@@ -358,9 +599,7 @@ const AuthModal = ({ isOpen, onClose }) => {
             <button
               type="button"
               onClick={() => {
-                setStep("forgot");
-                setErrorMessage("");
-                setSuccessMessage("");
+                moveToStep("forgot");
               }}
               className="text-sm text-green-300 hover:text-green-200 underline focus:outline-none"
             >
@@ -417,13 +656,14 @@ const AuthModal = ({ isOpen, onClose }) => {
         animate={{ opacity: 1 }}
         className="text-white/80 text-center mb-4"
       >
-        Enter your email or phone number to receive password reset instructions
+        Enter your email to receive password reset instructions
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
+        className="space-y-1"
       >
         <input
           type="email"
@@ -432,33 +672,9 @@ const AuthModal = ({ isOpen, onClose }) => {
           value={formData.email}
           onChange={handleChange}
           className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+          aria-invalid={Boolean(fieldErrors.email)}
         />
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="flex items-center"
-      >
-        <div className="flex-grow border-t border-white/20"></div>
-        <span className="px-3 text-white/50 text-sm">OR</span>
-        <div className="flex-grow border-t border-white/20"></div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <input
-          type="tel"
-          name="phone"
-          placeholder="Phone Number"
-          value={formData.phone}
-          onChange={handleChange}
-          className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
-        />
+        <InlineError message={fieldErrors.email} />
       </motion.div>
 
       <FormMessages error={errorMessage} success={successMessage} />
@@ -493,9 +709,7 @@ const AuthModal = ({ isOpen, onClose }) => {
         <motion.button
           type="button"
           onClick={() => {
-            setStep("auth");
-            setErrorMessage("");
-            setSuccessMessage("");
+            moveToStep("auth");
           }}
           className="flex-1 py-3 rounded-lg bg-gray-500 hover:bg-gray-600 text-white font-medium transition-all"
           whileHover={{ scale: 1.02 }}
@@ -527,28 +741,47 @@ const AuthModal = ({ isOpen, onClose }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
+        className="space-y-1"
       >
         <input
           type="text"
           value={otp}
-          onChange={(e) => setOtp(e.target.value)}
+          onChange={(e) => handleOtpInput(e.target.value)}
           placeholder="Enter OTP"
           className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+          aria-invalid={Boolean(fieldErrors.otp)}
         />
+        <InlineError message={fieldErrors.otp} />
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
+        className="space-y-2"
       >
-        <input
-          type="password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          placeholder="New Password"
-          className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
-        />
+        <div className="relative">
+          <input
+            type={showPassword.reset ? "text" : "password"}
+            value={newPassword}
+            onChange={(e) => handleNewPasswordInput(e.target.value)}
+            placeholder="New Password"
+            className="w-full p-3 pr-12 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+            aria-invalid={Boolean(fieldErrors.newPassword)}
+          />
+          <button
+            type="button"
+            onClick={() =>
+              setShowPassword((prev) => ({ ...prev, reset: !prev.reset }))
+            }
+            className="absolute inset-y-0 right-3 flex items-center text-white/70 hover:text-white focus:outline-none"
+            aria-label={`${showPassword.reset ? "Hide" : "Show"} password`}
+          >
+            {showPassword.reset ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
+        <InlineError message={fieldErrors.newPassword} />
+        <PasswordChecklist password={newPassword} />
       </motion.div>
 
       <FormMessages error={errorMessage} success={successMessage} />
@@ -583,9 +816,7 @@ const AuthModal = ({ isOpen, onClose }) => {
         <motion.button
           type="button"
           onClick={() => {
-            setStep("auth");
-            setErrorMessage("");
-            setSuccessMessage("");
+            moveToStep("auth");
           }}
           className="flex-1 py-3 rounded-lg bg-gray-500 hover:bg-gray-600 text-white font-medium transition-all"
           whileHover={{ scale: 1.02 }}
@@ -613,17 +844,32 @@ const AuthModal = ({ isOpen, onClose }) => {
         We've sent a 6-digit code to {formData.email}
       </motion.div>
 
-      <motion.input
-        type="text"
-        value={otp}
-        onChange={(e) => setOtp(e.target.value)}
-        placeholder="Enter OTP"
-        className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+      <motion.div
+        className="space-y-1"
         initial="hidden"
         animate="visible"
         variants={inputVariants}
         transition={{ delay: 0.5 }}
-      />
+      >
+        <input
+          type="text"
+          value={otp}
+          onChange={(e) => handleOtpInput(e.target.value)}
+          placeholder="Enter OTP"
+          className="w-full p-3 rounded-lg bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-400 border border-white/20"
+          aria-invalid={Boolean(fieldErrors.otp)}
+        />
+        <InlineError message={fieldErrors.otp} />
+      </motion.div>
+
+      <motion.p
+        className="text-xs text-white/70"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.55 }}
+      >
+        OTP codes expire 30 minutes after they are issued.
+      </motion.p>
 
       <FormMessages error={errorMessage} success={successMessage} />
 
@@ -682,6 +928,26 @@ const AuthModal = ({ isOpen, onClose }) => {
           transition={{ type: "spring", damping: 20, stiffness: 300 }}
           className="bg-gradient-to-br from-green-900/30 to-blue-900/30 border border-white/20 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-full max-w-md relative overflow-y-auto scrollbar-hide"
         >
+          <button
+            type="button"
+            onClick={handleCloseModal}
+            className="absolute top-4 right-4 bg-white/15 hover:bg-white/25 text-white p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 z-20"
+            aria-label="Close authentication modal"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+
           {/* Decorative elements */}
           <motion.div
             className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-green-500/20 blur-xl"
@@ -744,7 +1010,11 @@ const AuthModal = ({ isOpen, onClose }) => {
                 {["Farmer", "Buyer", "Supplier"].map((r) => (
                   <motion.button
                     key={r}
-                    onClick={() => setRole(r)}
+                    onClick={() => {
+                      setRole(r);
+                      setFieldErrors({});
+                      clearFormFeedback();
+                    }}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       role === r
                         ? "bg-green-500/90 text-white shadow-lg shadow-green-500/20"
@@ -778,9 +1048,10 @@ const AuthModal = ({ isOpen, onClose }) => {
                 {isSignup ? "Already have an account?" : "New to FarmConnect?"}
                 <motion.button
                   onClick={() => {
-                    setIsSignup(!isSignup);
-                    setErrorMessage("");
-                    setSuccessMessage("");
+                    setIsSignup((prev) => !prev);
+                    setFieldErrors({});
+                    clearFormFeedback();
+                    setShowPassword((prev) => ({ ...prev, auth: false }));
                   }}
                   className="ml-2 text-green-300 hover:text-green-200 font-medium focus:outline-none"
                   whileHover={{ scale: 1.05 }}
@@ -791,12 +1062,10 @@ const AuthModal = ({ isOpen, onClose }) => {
               </motion.p>
             )}
 
-            {(step === "forgot" || step === "reset" || step === "otp") && (
+            {(step === "reset" || step === "otp") && (
               <motion.button
                 onClick={() => {
-                  setStep("auth");
-                  setErrorMessage("");
-                  setSuccessMessage("");
+                  moveToStep("auth");
                 }}
                 className="mt-4 w-full py-2 rounded-lg bg-gray-500/80 hover:bg-gray-600 text-white font-medium transition-all flex items-center justify-center"
                 initial={{ opacity: 0 }}
@@ -820,30 +1089,6 @@ const AuthModal = ({ isOpen, onClose }) => {
                 Back to {isSignup ? "Sign Up" : "Login"}
               </motion.button>
             )}
-
-            <motion.button
-              onClick={onClose}
-              className="mt-6 w-full  py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white font-medium transition-all flex items-center justify-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 mr-1"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Close
-            </motion.button>
           </div>
         </motion.div>
       </motion.div>
@@ -899,6 +1144,70 @@ const FormMessages = ({ error, success }) => (
       </motion.div>
     )}
   </AnimatePresence>
+);
+
+const InlineError = ({ message }) =>
+  message ? <p className="text-xs text-red-200">{message}</p> : null;
+
+const PasswordChecklist = ({ password = "" }) => {
+  const checklist = getPasswordChecklist(password);
+  const items = [
+    { key: "length", label: "At least 8 characters" },
+    { key: "lower", label: "Includes a lowercase letter" },
+    { key: "upper", label: "Includes an uppercase letter" },
+    { key: "digit", label: "Includes a number" },
+    { key: "special", label: "Includes @$!%*?&#-_.+" },
+  ];
+
+  return (
+    <ul className="text-xs text-white/80 space-y-1">
+      {items.map(({ key, label }) => (
+        <li
+          key={key}
+          className={`flex items-center ${
+            checklist[key] ? "text-green-300" : "text-white/50"
+          }`}
+        >
+          <span className="mr-2 text-sm">{checklist[key] ? "✔" : "•"}</span>
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+const EyeIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+    <circle cx="12" cy="12" r="2.25" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 3l18 18" />
+    <path d="M10.477 10.477a3 3 0 004.243 4.243" />
+    <path d="M6.633 6.633C4.507 7.962 3 10 3 10s3.75 6.75 9.75 6.75c1.163 0 2.257-.19 3.262-.53" />
+    <path d="M17.253 14.63C19.405 13.252 21 10.999 21 10.999s-3.75-6.75-9.75-6.75a9.054 9.054 0 00-2.835.452" />
+  </svg>
 );
 
 export default AuthModal;

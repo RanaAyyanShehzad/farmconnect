@@ -30,7 +30,15 @@ function AuthProvider({ children }) {
       }
       try {
         const profile = await fetchProfileForRole(nextRole);
-        dispatch(setUser({ name: profile.name, img: profile.img }));
+        dispatch(
+          setUser({
+            name: profile.name,
+            img: profile.img,
+            email: profile.email,
+            phone: profile.phone,
+            address: profile.address,
+          })
+        );
       } catch (err) {
         // swallow profile errors, UI can still rely on auth state
       }

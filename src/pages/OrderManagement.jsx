@@ -10,10 +10,13 @@ import {
   FiEye,
   FiRefreshCw,
   FiAlertCircle,
+  FiDownload,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 function OrderManagement() {
   const [orders, setOrders] = useState([]);
@@ -26,15 +29,11 @@ function OrderManagement() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage] = useState(10);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const navigate = useNavigate();
-
-
-  
 
   // Fetch orders from API with authentication
   const fetchOrders = async () => {
-    
-
     try {
       setLoading(true);
       const response = await fetch(
@@ -43,7 +42,6 @@ function OrderManagement() {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            
           },
           credentials: "include",
         }
@@ -61,8 +59,7 @@ function OrderManagement() {
         setError(data.message || "Failed to fetch orders");
       }
     } catch (err) {
-        setError(err.message);
-      
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -72,9 +69,66 @@ function OrderManagement() {
     fetchOrders();
   }, []);
 
+  // Handle product status change (multi-vendor system)
+  const handleProductStatusChange = async (orderId, productId, newStatus) => {
+    try {
+      // Make API call to update product status
+      const response = await fetch(
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/product/${productId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || `Failed to update status: ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || "Failed to update status");
+      }
+
+      toast.success(data.message || "Product status updated successfully");
+
+      // Refresh orders to get updated order status
+      await fetchOrders();
+
+      // Update selected order if it's the current one
+      if (selectedOrder && selectedOrder._id === orderId) {
+        const updatedOrderResponse = await fetch(
+          `https://agrofarm-vd8i.onrender.com/api/v1/order/item/${orderId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+          }
+        );
+        if (updatedOrderResponse.ok) {
+          const updatedData = await updatedOrderResponse.json();
+          if (updatedData.success) {
+            setSelectedOrder(updatedData.order);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error updating product status:", err);
+      toast.error(err.message || "Failed to update product status");
+    }
+  };
+
   // Handle status change with authentication
   const handleStatusChange = async (orderId, newStatus) => {
-   
     try {
       // First update locally for instant UI feedback
       setOrders((prevOrders) =>
@@ -94,7 +148,6 @@ function OrderManagement() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-           
           },
           credentials: "include",
           body: JSON.stringify({ status: newStatus }),
@@ -129,15 +182,24 @@ function OrderManagement() {
   // In your filtering logic, replace the current filteredOrders with this:
   const searchTermLower = (searchTerm || "").toLowerCase();
   const filteredOrders = (orders || []).filter((order) => {
+    const orderStatus = order.orderStatus || order.status || "";
     const matchesStatus =
       statusFilter === "all" ||
-      order.status?.toLowerCase() === statusFilter.toLowerCase();
+      orderStatus?.toLowerCase() === statusFilter.toLowerCase();
 
     const matchesId = order._id?.toLowerCase().includes(searchTermLower);
 
-    const matchesProduct = (order.products || []).some((product) =>
-      product?.name?.toLowerCase().includes(searchTermLower)
-    );
+    const matchesProduct = (order.products || []).some((item) => {
+      const product = item.productId || item;
+      return product?.name?.toLowerCase().includes(searchTermLower);
+    });
+
+    const matchesCustomerName =
+      order.customer?.name?.toLowerCase().includes(searchTermLower) || false;
+    const matchesCustomerEmail =
+      order.customer?.email?.toLowerCase().includes(searchTermLower) || false;
+    const matchesCustomerPhone =
+      order.customer?.phone?.toLowerCase().includes(searchTermLower) || false;
 
     const matchesAddress =
       order.shippingAddress?.street?.toLowerCase().includes(searchTermLower) ||
@@ -155,12 +217,14 @@ function OrderManagement() {
       matchesStatus &&
       (matchesId ||
         matchesProduct ||
+        matchesCustomerName ||
+        matchesCustomerEmail ||
+        matchesCustomerPhone ||
         matchesAddress ||
         matchesCity ||
         matchesPhone)
     );
   });
-  
 
   // View order details
   const viewOrderDetails = (order) => {
@@ -170,19 +234,41 @@ function OrderManagement() {
 
   // Get status color and display text
   const getStatusInfo = (status) => {
-    switch (status.toLowerCase()) {
+    const statusLower = status?.toLowerCase() || "";
+    switch (statusLower) {
       case "pending":
         return { color: "bg-yellow-100 text-yellow-800", text: "Pending" };
       case "processing":
         return { color: "bg-blue-100 text-blue-800", text: "Processing" };
+      case "confirmed":
+        return { color: "bg-purple-100 text-purple-800", text: "Confirmed" };
       case "shipped":
         return { color: "bg-indigo-100 text-indigo-800", text: "Shipped" };
       case "delivered":
         return { color: "bg-green-100 text-green-800", text: "Delivered" };
       case "canceled":
-        return { color: "bg-red-100 text-red-800", text: "Canceled" };
+      case "cancelled":
+        return { color: "bg-red-100 text-red-800", text: "Cancelled" };
+      case "partially_shipped":
+        return {
+          color: "bg-indigo-100 text-indigo-800",
+          text: "Partially Shipped",
+        };
+      case "partially_delivered":
+        return {
+          color: "bg-green-100 text-green-800",
+          text: "Partially Delivered",
+        };
+      case "partially_cancelled":
+        return {
+          color: "bg-red-100 text-red-800",
+          text: "Partially Cancelled",
+        };
       default:
-        return { color: "bg-gray-100 text-gray-800", text: status };
+        return {
+          color: "bg-gray-100 text-gray-800",
+          text: status || "Unknown",
+        };
     }
   };
 
@@ -202,6 +288,207 @@ function OrderManagement() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  // Generate and download PDF invoice
+  const downloadInvoicePDF = async (order) => {
+    if (downloadingInvoice) return; // Prevent multiple clicks
+
+    try {
+      setDownloadingInvoice(true);
+
+      // Fetch full order details to ensure we have all customer information
+      const response = await fetch(
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/item/${order._id}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      let orderData = order;
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.order) {
+          orderData = data.order;
+        }
+      }
+
+      const doc = new jsPDF();
+
+      // Set up document
+      doc.setFontSize(20);
+      doc.text("Order Invoice", 14, 20);
+
+      // Company/Business Info
+      doc.setFontSize(12);
+      doc.text("FarmConnect", 14, 30);
+      doc.setFontSize(10);
+      doc.text("Agri-Marketplace", 14, 36);
+
+      // Order Info
+      doc.setFontSize(11);
+      doc.text(`Order ID: ${orderData._id}`, 14, 50);
+      doc.text(`Order Date: ${formatDate(orderData.createdAt)}`, 14, 56);
+      doc.text(
+        `Status: ${orderData.status?.toUpperCase() || "PENDING"}`,
+        14,
+        62
+      );
+
+      // Customer Info
+      const customerY = 72;
+      doc.setFontSize(11);
+      doc.text("Customer Information:", 14, customerY);
+      doc.setFontSize(10);
+      doc.text(`Name: ${orderData.customer?.name || "N/A"}`, 14, customerY + 6);
+      doc.text(
+        `Email: ${orderData.customer?.email || "N/A"}`,
+        14,
+        customerY + 12
+      );
+      doc.text(
+        `Phone: ${
+          orderData.customer?.phone ||
+          orderData.shippingAddress?.phoneNumber ||
+          "N/A"
+        }`,
+        14,
+        customerY + 18
+      );
+
+      const addressText =
+        orderData.customer?.address ||
+        `${orderData.shippingAddress?.street || ""}, ${
+          orderData.shippingAddress?.city || ""
+        }, ${orderData.shippingAddress?.zipCode || ""}`.replace(
+          /^,\s*|,\s*$/g,
+          ""
+        );
+      const addressLines = doc.splitTextToSize(`Address: ${addressText}`, 180);
+      doc.text(addressLines, 14, customerY + 24);
+
+      // Shipping Address (on the right side)
+      const shippingY = customerY;
+      doc.setFontSize(11);
+      doc.text("Shipping Address:", 120, shippingY);
+      doc.setFontSize(10);
+      const shippingLines = doc.splitTextToSize(
+        `${orderData.shippingAddress?.street || "N/A"}, ${
+          orderData.shippingAddress?.city || "N/A"
+        }, ${orderData.shippingAddress?.zipCode || "N/A"}`,
+        70
+      );
+      doc.text(shippingLines, 120, shippingY + 6);
+      doc.text(
+        `Phone: ${orderData.shippingAddress?.phoneNumber || "N/A"}`,
+        120,
+        shippingY + 18
+      );
+
+      // Payment Info
+      const paymentY = customerY + 40;
+      doc.setFontSize(11);
+      doc.text("Payment Information:", 14, paymentY);
+      doc.setFontSize(10);
+      doc.text(
+        `Method: ${
+          orderData.paymentInfo?.method?.replace(/-/g, " ").toUpperCase() ||
+          "N/A"
+        }`,
+        14,
+        paymentY + 6
+      );
+      doc.text(
+        `Status: ${orderData.paymentInfo?.status?.toUpperCase() || "N/A"}`,
+        14,
+        paymentY + 12
+      );
+
+      // Prepare table data
+      const products = orderData.products || [];
+      let tableY = paymentY + 25;
+
+      // Table header
+      doc.setFontSize(11);
+      doc.setFillColor(34, 139, 34);
+      doc.rect(14, tableY, 180, 8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.text("Product", 16, tableY + 6);
+      doc.text("Quantity", 90, tableY + 6);
+      doc.text("Price", 140, tableY + 6);
+      doc.text("Total", 175, tableY + 6);
+
+      tableY += 10;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+
+      // Table rows
+      products.forEach((item, index) => {
+        const product = item.productId || item;
+        const productName = product.name || "Unknown Product";
+        const quantity = item.quantity || 0;
+        const unitPrice = product.price || 0;
+        const total = quantity * unitPrice;
+        const unit = product.unit || "";
+
+        // Alternate row colors
+        if (index % 2 === 0) {
+          doc.setFillColor(245, 245, 245);
+          doc.rect(14, tableY - 2, 180, 8, "F");
+        }
+
+        // Truncate long product names
+        const maxWidth = 65;
+        let displayName = productName;
+        if (doc.getTextWidth(displayName) > maxWidth) {
+          displayName = doc.splitTextToSize(displayName, maxWidth)[0] + "...";
+        }
+
+        doc.text(displayName, 16, tableY + 5);
+        doc.text(`${quantity} ${unit}`, 90, tableY + 5);
+        doc.text(`Rs. ${unitPrice.toLocaleString()}`, 140, tableY + 5);
+        doc.text(`Rs. ${total.toLocaleString()}`, 175, tableY + 5);
+
+        tableY += 10;
+      });
+
+      const finalY = tableY;
+
+      // Order notes
+      if (orderData.notes) {
+        doc.setFontSize(10);
+        doc.text(`Order Notes: ${orderData.notes}`, 14, finalY + 10);
+      }
+
+      // Total
+      doc.setFontSize(12);
+      doc.text(
+        `Total: Rs. ${orderData.totalPrice?.toLocaleString() || "0"}`,
+        120,
+        finalY + 15,
+        { align: "right" }
+      );
+
+      // Footer
+      doc.setFontSize(8);
+      doc.text("Thank you for your business!", 105, 280, { align: "center" });
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 285, {
+        align: "center",
+      });
+
+      // Save the PDF
+      doc.save(`Invoice-${orderData._id.substring(0, 8)}.pdf`);
+      toast.success("Invoice downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate invoice PDF");
+    } finally {
+      setDownloadingInvoice(false);
+    }
   };
   // Add this to your modal component (outside the return)
   useEffect(() => {
@@ -226,8 +513,6 @@ function OrderManagement() {
 
   // Refresh orders
   const refreshOrders = async () => {
-   
-
     try {
       setLoading(true);
       const response = await fetch(
@@ -236,7 +521,6 @@ function OrderManagement() {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-           
           },
           credentials: "include",
         }
@@ -320,7 +604,7 @@ function OrderManagement() {
             </div>
             <input
               type="text"
-              placeholder="Search by order ID, address, product, or phone..."
+              placeholder="Search by order ID, customer name, product, address, or phone..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -354,9 +638,14 @@ function OrderManagement() {
                       "all",
                       "pending",
                       "processing",
+                      "confirmed",
                       "shipped",
                       "delivered",
+                      "partially_shipped",
+                      "partially_delivered",
+                      "partially_cancelled",
                       "canceled",
+                      "cancelled",
                     ].map((status) => (
                       <label
                         key={status}
@@ -397,6 +686,9 @@ function OrderManagement() {
                   Order ID
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Customer
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Products
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -431,12 +723,22 @@ function OrderManagement() {
                         {order._id.substring(0, 8)}...
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {order.customer?.name || "N/A"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {order.customer?.email || order.customer?.phone || ""}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-900">
                         {order.products.length} items
                       </div>
                       <div className="text-xs text-gray-500">
-                        {order.products[0]?.name || "N/A"}
+                        {order.products[0]?.productId?.name ||
+                          order.products[0]?.name ||
+                          "N/A"}
                         {order.products.length > 1
                           ? ` +${order.products.length - 1} more`
                           : ""}
@@ -453,10 +755,10 @@ function OrderManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          getStatusInfo(order.status).color
+                          getStatusInfo(order.orderStatus || order.status).color
                         }`}
                       >
-                        {getStatusInfo(order.status).text}
+                        {getStatusInfo(order.orderStatus || order.status).text}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -479,28 +781,13 @@ function OrderManagement() {
                         >
                           <FiEye className="h-5 w-5" />
                         </button>
-                        <select
-                          value={order.status}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange(order._id, e.target.value);
-                          }}
-                          className="border rounded px-2 py-1 text-xs focus:ring-blue-500 focus:border-blue-500"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="processing">Processing</option>
-                          <option value="shipped">Shipped</option>
-                          <option value="delivered">Delivered</option>
-                          <option value="canceled">Canceled</option>
-                        </select>
                       </div>
                     </td>
                   </motion.tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center">
+                  <td colSpan="8" className="px-6 py-4 text-center">
                     <div className="text-gray-500 py-8">
                       <svg
                         className="mx-auto h-12 w-12 text-gray-400"
@@ -649,24 +936,23 @@ function OrderManagement() {
                             {formatDate(selectedOrder.createdAt)}
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Status</span>
-                          <select
-                            value={selectedOrder.status}
-                            onChange={(e) =>
-                              handleStatusChange(
-                                selectedOrder._id,
-                                e.target.value
-                              )
-                            }
-                            className="border rounded px-2 py-1 text-sm focus:ring-green-500 focus:border-green-500"
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500">Order Status</span>
+                          <span
+                            className={`px-2 py-1 inline-flex text-xs font-semibold rounded-full ${
+                              getStatusInfo(
+                                selectedOrder.status ||
+                                  selectedOrder.orderStatus
+                              ).color
+                            }`}
                           >
-                            <option value="pending">Pending</option>
-                            <option value="processing">Processing</option>
-                            <option value="shipped">Shipped</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="canceled">Canceled</option>
-                          </select>
+                            {
+                              getStatusInfo(
+                                selectedOrder.status ||
+                                  selectedOrder.orderStatus
+                              ).text
+                            }
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Payment Method</span>
@@ -696,19 +982,44 @@ function OrderManagement() {
                       </h4>
                       <div className="space-y-3 text-sm">
                         <div className="flex justify-between">
+                          <span className="text-gray-500">Name</span>
+                          <span className="font-medium text-gray-800">
+                            {selectedOrder.customer?.name || "N/A"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Email</span>
+                          <span className="font-medium text-gray-800">
+                            {selectedOrder.customer?.email || "N/A"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-gray-500">Phone</span>
                           <span className="font-medium text-gray-800">
-                            {selectedOrder.shippingAddress?.phoneNumber ||
+                            {selectedOrder.customer?.phone ||
+                              selectedOrder.shippingAddress?.phoneNumber ||
                               "N/A"}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Address</span>
                           <span className="text-right font-medium text-gray-800">
-                            {selectedOrder.shippingAddress?.street || "N/A"},{" "}
-                            {selectedOrder.shippingAddress?.city || "N/A"}
+                            {selectedOrder.customer?.address ||
+                              `${
+                                selectedOrder.shippingAddress?.street || "N/A"
+                              }, ${
+                                selectedOrder.shippingAddress?.city || "N/A"
+                              }`}
                           </span>
                         </div>
+                        {selectedOrder.notes && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Order Notes</span>
+                            <span className="text-right font-medium text-gray-800">
+                              {selectedOrder.notes}
+                            </span>
+                          </div>
+                        )}
                         {selectedOrder.deliveryInfo?.notes && (
                           <div className="flex justify-between">
                             <span className="text-gray-500">
@@ -741,39 +1052,118 @@ function OrderManagement() {
                             <th className="px-4 py-3 text-right font-medium">
                               Price
                             </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              Status
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {selectedOrder.products.map((product, index) => (
-                            <tr key={index}>
-                              <td className="px-4 py-4">
-                                <div className="flex items-center space-x-3">
-                                  {product.images?.[0] && (
-                                    <img
-                                      src={product.images[0]}
-                                      alt={product.name}
-                                      className="h-10 w-10 rounded object-cover"
-                                    />
-                                  )}
-                                  <div>
-                                    <div className="font-medium text-gray-800">
-                                      {product.name}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      Supplier:{" "}
-                                      {product.supplier?.name || "N/A"}
+                          {selectedOrder.products.map((item, index) => {
+                            const product = item.productId || item;
+                            const productStatus = item.status || "processing";
+                            const vendorName =
+                              item.farmerId?.name ||
+                              item.supplierId?.name ||
+                              product.upLoadedBy?.uploaderName ||
+                              "N/A";
+                            const isCancelled =
+                              productStatus === "cancelled" ||
+                              productStatus === "canceled";
+
+                            return (
+                              <tr key={item._id || index}>
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center space-x-3">
+                                    {product.images?.[0] && (
+                                      <img
+                                        src={product.images[0]}
+                                        alt={product.name}
+                                        className="h-10 w-10 rounded object-cover"
+                                      />
+                                    )}
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className={`font-medium ${
+                                            product.isDeleted ||
+                                            product.isActive === false
+                                              ? "text-gray-400 line-through"
+                                              : "text-gray-800"
+                                          }`}
+                                        >
+                                          {product.name || "Unknown Product"}
+                                        </div>
+                                        {(product.isDeleted ||
+                                          product.isActive === false) && (
+                                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full">
+                                            Deleted
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div
+                                        className={`text-xs ${
+                                          product.isDeleted ||
+                                          product.isActive === false
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                        }`}
+                                      >
+                                        Vendor: {vendorName}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-4 text-gray-600">
-                                {product.quantity}
-                              </td>
-                              <td className="px-4 py-4 text-right font-medium text-gray-800">
-                                {formatCurrency(product.price)}
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td className="px-4 py-4 text-gray-600">
+                                  {item.quantity}{" "}
+                                  {product.unit ? product.unit : ""}
+                                </td>
+                                <td className="px-4 py-4 text-right font-medium text-gray-800">
+                                  {formatCurrency(product.price || item.price)}{" "}
+                                  / {product.unit || ""}
+                                </td>
+                                <td className="px-4 py-4">
+                                  <span
+                                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                      getStatusInfo(productStatus).color
+                                    }`}
+                                  >
+                                    {getStatusInfo(productStatus).text}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-4">
+                                  <select
+                                    value={productStatus}
+                                    onChange={(e) => {
+                                      if (!isCancelled) {
+                                        handleProductStatusChange(
+                                          selectedOrder._id,
+                                          item._id,
+                                          e.target.value
+                                        );
+                                      }
+                                    }}
+                                    disabled={isCancelled}
+                                    className={`border rounded px-2 py-1 text-xs focus:ring-green-500 focus:border-green-500 ${
+                                      isCancelled
+                                        ? "opacity-50 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                  >
+                                    <option value="processing">
+                                      Processing
+                                    </option>
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="shipped">Shipped</option>
+                                    <option value="delivered">Delivered</option>
+                                    <option value="cancelled">Cancelled</option>
+                                  </select>
+                                </td>
+                              </tr>
+                            );
+                          })}
                           <tr className="bg-gray-50">
                             <td
                               colSpan="2"
@@ -817,10 +1207,21 @@ function OrderManagement() {
                 <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
                   <button
                     type="button"
-                    className="inline-flex items-center px-4 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700"
+                    onClick={() => downloadInvoicePDF(selectedOrder)}
+                    disabled={downloadingInvoice}
+                    className="inline-flex items-center px-4 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <FiPrinter className="mr-2 h-5 w-5" />
-                    Print Invoice
+                    {downloadingInvoice ? (
+                      <>
+                        <FiRefreshCw className="mr-2 h-5 w-5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FiDownload className="mr-2 h-5 w-5" />
+                        Download Invoice PDF
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"

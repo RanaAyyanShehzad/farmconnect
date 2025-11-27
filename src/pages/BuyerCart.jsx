@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
+import { useSelector } from "react-redux";
 
 function BuyerCart() {
   const [cartItems, setCartItems] = useState([]);
@@ -22,6 +23,37 @@ function BuyerCart() {
 
   const navigate = useNavigate();
   const { openPreview, ProductPreviewModal } = useProductPreview();
+  const {
+    name: userName,
+    phone: userPhone,
+    address: userAddress,
+  } = useSelector((state) => state.user);
+
+  useEffect(() => {
+    // Prefill checkout form with the profile data captured during signup/login.
+    if (!userName && !userPhone && !userAddress) return;
+    setCheckoutForm((prev) => {
+      let hasChanges = false;
+      const nextState = { ...prev };
+
+      if (!prev.fullName && userName) {
+        nextState.fullName = userName;
+        hasChanges = true;
+      }
+
+      if (!prev.phoneNumber && userPhone) {
+        nextState.phoneNumber = userPhone;
+        hasChanges = true;
+      }
+
+      if (!prev.street && userAddress) {
+        nextState.street = userAddress;
+        hasChanges = true;
+      }
+
+      return hasChanges ? nextState : prev;
+    });
+  }, [userName, userPhone, userAddress]);
   const cardVariants = {
     hidden: { opacity: 0, y: 15 },
     visible: {
