@@ -18,7 +18,7 @@ const FarmerProfile = () => {
   // Cloudinary configuration
   const CLOUD_NAME = "dn5edjpzg";
   const UPLOAD_PRESET = "FarmConnect";
-  const dispatch=useDispatch();
+  const dispatch = useDispatch();
   // State management
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -50,10 +50,8 @@ const FarmerProfile = () => {
 
   // Fetch profile data on mount
   useEffect(() => {
-  
-
     fetchProfileData();
-    
+
     return () => {
       if (tempData.imgPreview) {
         URL.revokeObjectURL(tempData.imgPreview);
@@ -255,11 +253,16 @@ const FarmerProfile = () => {
 
   // Handle account deletion
   const handleDeleteAccount = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete your account? This cannot be undone."
-      )
-    ) {
+    const confirmMessage =
+      "⚠️ WARNING: Account Deletion\n\n" +
+      "Are you sure you want to delete your account? This action will:\n\n" +
+      "• Mark your account as deleted (soft delete)\n" +
+      "• Soft delete all your products (they will be removed from listings)\n" +
+      "• Your existing orders will remain intact for record keeping\n\n" +
+      "Your data will be preserved but your account will be inactive.\n\n" +
+      "This action cannot be undone. Continue?";
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -270,12 +273,22 @@ const FarmerProfile = () => {
         { method: "DELETE", credentials: "include" }
       );
 
-      if (!response.ok) throw new Error("Account deletion failed");
+      const data = await response.json();
 
-      toast.success("Account deleted successfully");
-      navigate("/");
+      if (!response.ok) {
+        throw new Error(data.message || "Account deletion failed");
+      }
+
+      toast.success(
+        data.message ||
+          "Account deleted successfully. All your products have been removed."
+      );
+      setTimeout(() => {
+        dispatch(setUser(null));
+        navigate("/");
+      }, 2000);
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to delete account");
     } finally {
       setLoading(false);
     }

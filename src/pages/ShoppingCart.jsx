@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
+import { useSelector } from "react-redux";
 
 function ShoppingCart() {
   const [cartItems, setCartItems] = useState([]);
@@ -22,6 +23,37 @@ function ShoppingCart() {
 
   const navigate = useNavigate();
   const { openPreview, ProductPreviewModal } = useProductPreview();
+  const {
+    name: userName,
+    phone: userPhone,
+    address: userAddress,
+  } = useSelector((state) => state.user);
+
+  useEffect(() => {
+    // Prefill checkout form with the profile data captured during signup/login.
+    if (!userName && !userPhone && !userAddress) return;
+    setCheckoutForm((prev) => {
+      let hasChanges = false;
+      const nextState = { ...prev };
+
+      if (!prev.fullName && userName) {
+        nextState.fullName = userName;
+        hasChanges = true;
+      }
+
+      if (!prev.phoneNumber && userPhone) {
+        nextState.phoneNumber = userPhone;
+        hasChanges = true;
+      }
+
+      if (!prev.street && userAddress) {
+        nextState.street = userAddress;
+        hasChanges = true;
+      }
+
+      return hasChanges ? nextState : prev;
+    });
+  }, [userName, userPhone, userAddress]);
   const cardVariants = {
     hidden: { opacity: 0, y: 15 },
     visible: {
@@ -146,23 +178,44 @@ function ShoppingCart() {
 
       // Map the products to include both cart item info and product details
       const items =
-        data.cart?.products?.map((cartItem) => ({
-          // Cart item properties
-          id: cartItem._id, // Cart item ID
-          quantity: cartItem.quantity, // Quantity in cart
+        data.cart?.products?.map((cartItem) => {
+          const product = cartItem.productId;
+          const isUnavailable =
+            product &&
+            (product.isDeleted || !product.isActive || !product.isAvailable);
 
-          // Product properties
-          productId: cartItem.productId?._id,
-          name: cartItem.productId?.name,
-          description: cartItem.productId?.description,
-          price: cartItem.productId?.price,
-          unit: cartItem.productId?.unit,
-          availableQuantity: cartItem.productId?.quantity, // Available stock
-          category: cartItem.productId?.category,
-          isAvailable: cartItem.productId?.isAvailable,
-          images: cartItem.productId?.images,
-          seller: cartItem.productId?.upLoadedBy,
-        })) || [];
+          return {
+            // Cart item properties
+            id: cartItem._id, // Cart item ID
+            quantity: cartItem.quantity, // Quantity in cart
+
+            // Product properties
+            productId: product?._id,
+            name: product?.name || "Unknown Product",
+            description: product?.description,
+            price: product?.price,
+            unit: product?.unit,
+            availableQuantity: product?.quantity, // Available stock
+            category: product?.category,
+            isAvailable: product?.isAvailable,
+            images: product?.images,
+            seller: product?.upLoadedBy,
+            isDeleted: product?.isDeleted || false,
+            isActive: product?.isActive !== false,
+            isUnavailable: isUnavailable || false,
+          };
+        }) || [];
+
+      // Show warning for unavailable products
+      const unavailableCount = items.filter(
+        (item) => item.isUnavailable
+      ).length;
+      if (unavailableCount > 0) {
+        toast.warning(
+          `${unavailableCount} product(s) in your cart are no longer available. Please remove them before checkout.`,
+          { autoClose: 6000 }
+        );
+      }
 
       setCartItems(items);
       console.log(items);
@@ -476,18 +529,49 @@ function ShoppingCart() {
                           <div className="flex flex-col h-full">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                  {item.name}
-                                </h3>
-                                <p className="mt-1 text-sm text-gray-600">
+                                <div className="flex items-center gap-2">
+                                  <h3
+                                    className={`text-lg font-semibold ${
+                                      item.isUnavailable
+                                        ? "text-gray-400 line-through"
+                                        : "text-gray-900"
+                                    }`}
+                                  >
+                                    {item.name}
+                                  </h3>
+                                  {item.isUnavailable && (
+                                    <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
+                                      Unavailable
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={`mt-1 text-sm ${
+                                    item.isUnavailable
+                                      ? "text-gray-400"
+                                      : "text-gray-600"
+                                  }`}
+                                >
                                   Farmer:{" "}
                                   {item.seller?.uploaderName || "Unknown"}
                                 </p>
-                                <p className="mt-1 text-sm text-gray-500 capitalize">
+                                <p
+                                  className={`mt-1 text-sm capitalize ${
+                                    item.isUnavailable
+                                      ? "text-gray-400"
+                                      : "text-gray-500"
+                                  }`}
+                                >
                                   Category: {item.category}
                                 </p>
                               </div>
-                              <p className="text-lg font-semibold text-green-700">
+                              <p
+                                className={`text-lg font-semibold ${
+                                  item.isUnavailable
+                                    ? "text-gray-400"
+                                    : "text-green-700"
+                                }`}
+                              >
                                 {formatCurrency(item.price)} / {item.unit}
                               </p>
                             </div>
@@ -573,12 +657,31 @@ function ShoppingCart() {
                       <p className="text-green-700">{formatCurrency(total)}</p>
                     </div>
 
-                    <button
-                      onClick={() => setShowCheckoutModal(true)}
-                      className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md transition-colors"
-                    >
-                      Proceed to Checkout
-                    </button>
+                    {(() => {
+                      const hasUnavailableItems = cartItems.some(
+                        (item) => item.isUnavailable
+                      );
+                      return (
+                        <button
+                          onClick={() => setShowCheckoutModal(true)}
+                          disabled={hasUnavailableItems}
+                          className={`w-full py-3 px-4 text-white font-medium rounded-lg shadow-md transition-colors ${
+                            hasUnavailableItems
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : "bg-green-600 hover:bg-green-700"
+                          }`}
+                          title={
+                            hasUnavailableItems
+                              ? "Please remove unavailable products before checkout"
+                              : ""
+                          }
+                        >
+                          {hasUnavailableItems
+                            ? "Remove Unavailable Items First"
+                            : "Proceed to Checkout"}
+                        </button>
+                      );
+                    })()}
 
                     <button
                       onClick={() => {
