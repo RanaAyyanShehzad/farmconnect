@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function MyOrders() {
   const [orders, setOrders] = useState([]);
@@ -14,6 +15,18 @@ function MyOrders() {
   });
   const [submittingReview, setSubmittingReview] = useState(false);
   const navigate = useNavigate();
+  const { role } = useAuth();
+
+  // Get the appropriate products page based on user role
+  const getProductsPage = () => {
+    if (role === "farmer") {
+      return "/farmer/farmerProducts";
+    } else if (role === "buyer") {
+      return "/buyer/products";
+    }
+    // Fallback (should not happen in protected routes)
+    return "/";
+  };
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -244,7 +257,7 @@ function MyOrders() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-green-800">My Orders</h1>
         <button
-          onClick={() => navigate("/farmer/farmerProducts")}
+          onClick={() => navigate(getProductsPage())}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition"
         >
           Continue Shopping
@@ -275,7 +288,7 @@ function MyOrders() {
             You haven't placed any orders yet
           </p>
           <button
-            onClick={() => navigate("/farmer/farmerProducts")}
+            onClick={() => navigate(getProductsPage())}
             className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md transition-colors"
           >
             Browse Products
