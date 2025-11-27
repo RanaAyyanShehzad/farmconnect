@@ -11,6 +11,8 @@ function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
   const weatherLabel =
     weather.status === "loading" ? "..." : weather.temperature;
 
+
+    
   return (
     <>
       {/* Mobile backdrop */}
