@@ -54,7 +54,22 @@ function OrderManagement() {
       const data = await response.json();
 
       if (data.success) {
-        setOrders(data.orders);
+        // Ensure orders have customer information
+        const ordersWithCustomer = (data.orders || []).map((order) => {
+          // Log for debugging if customer info is missing
+          if (
+            !order.customer &&
+            (!order.buyerId || typeof order.buyerId === "string")
+          ) {
+            console.warn("Order missing customer info:", order._id, {
+              hasCustomer: !!order.customer,
+              buyerIdType: typeof order.buyerId,
+              buyerId: order.buyerId,
+            });
+          }
+          return order;
+        });
+        setOrders(ordersWithCustomer);
       } else {
         setError(data.message || "Failed to fetch orders");
       }
@@ -215,13 +230,18 @@ function OrderManagement() {
       return product?.name?.toLowerCase().includes(searchTermLower);
     });
 
-    const customer = order.customer || order.buyerId;
+    // Handle both customer object and buyerId (which might be object or string)
+    const customerObj =
+      order.customer ||
+      (order.buyerId && typeof order.buyerId === "object"
+        ? order.buyerId
+        : null);
     const matchesCustomerName =
-      customer?.name?.toLowerCase().includes(searchTermLower) || false;
+      customerObj?.name?.toLowerCase().includes(searchTermLower) || false;
     const matchesCustomerEmail =
-      customer?.email?.toLowerCase().includes(searchTermLower) || false;
+      customerObj?.email?.toLowerCase().includes(searchTermLower) || false;
     const matchesCustomerPhone =
-      customer?.phone?.toLowerCase().includes(searchTermLower) || false;
+      customerObj?.phone?.toLowerCase().includes(searchTermLower) || false;
 
     const matchesAddress =
       order.shippingAddress?.street?.toLowerCase().includes(searchTermLower) ||
@@ -346,7 +366,11 @@ function OrderManagement() {
 
       // Customer Info
       const customerY = 72;
-      const customer = orderData.customer || orderData.buyerId;
+      const customer =
+        orderData.customer ||
+        (orderData.buyerId && typeof orderData.buyerId === "object"
+          ? orderData.buyerId
+          : null);
       doc.setFontSize(11);
       doc.text("Customer Information:", 14, customerY);
       doc.setFontSize(10);
@@ -725,12 +749,24 @@ function OrderManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {(order.customer || order.buyerId)?.name || "N/A"}
+                        {(() => {
+                          const customerObj =
+                            order.customer ||
+                            (order.buyerId && typeof order.buyerId === "object"
+                              ? order.buyerId
+                              : null);
+                          return customerObj?.name || "N/A";
+                        })()}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {(order.customer || order.buyerId)?.email ||
-                          (order.customer || order.buyerId)?.phone ||
-                          ""}
+                        {(() => {
+                          const customerObj =
+                            order.customer ||
+                            (order.buyerId && typeof order.buyerId === "object"
+                              ? order.buyerId
+                              : null);
+                          return customerObj?.email || customerObj?.phone || "";
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -984,8 +1020,18 @@ function OrderManagement() {
                       </h4>
                       <div className="space-y-3 text-sm">
                         {(() => {
-                          const customer =
-                            selectedOrder.customer || selectedOrder.buyerId;
+                          // Prioritize customer field, then buyerId (per API spec)
+                          // Handle both populated objects and string IDs
+                          const customerObj =
+                            selectedOrder.customer ||
+                            (selectedOrder.buyerId &&
+                            typeof selectedOrder.buyerId === "object"
+                              ? selectedOrder.buyerId
+                              : null);
+
+                          // If buyerId is a string, we can't use it directly
+                          const customer = customerObj || null;
+
                           return (
                             <>
                               <div className="flex justify-between">
@@ -1013,13 +1059,10 @@ function OrderManagement() {
                                 <span className="text-gray-500">Address</span>
                                 <span className="text-right font-medium text-gray-800">
                                   {customer?.address ||
-                                    `${
-                                      selectedOrder.shippingAddress?.street ||
-                                      "N/A"
-                                    }, ${
-                                      selectedOrder.shippingAddress?.city ||
-                                      "N/A"
-                                    }`}
+                                    (selectedOrder.shippingAddress?.street &&
+                                    selectedOrder.shippingAddress?.city
+                                      ? `${selectedOrder.shippingAddress.street}, ${selectedOrder.shippingAddress.city}`
+                                      : "N/A")}
                                 </span>
                               </div>
                             </>

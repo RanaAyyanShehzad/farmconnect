@@ -40,8 +40,6 @@ const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#\-_.+])[A-Za-z\d@$!%*?&#\-_.+]{8,}$/;
 const PHONE_REGEX = /^\+92\d{10}$/;
 const OTP_REGEX = /^\d{6}$/;
-const LOCKOUT_NOTICE =
-  "Five failed login attempts lock your account for 30 minutes.";
 const getPasswordChecklist = (value = "") => ({
   length: value.length >= 8,
   lower: /[a-z]/.test(value),
@@ -578,14 +576,14 @@ const AuthModal = ({ isOpen, onClose }) => {
           {isSignup && <PasswordChecklist password={formData.password} />}
         </motion.div>
 
-        {!isSignup && step === "auth" && (
+        {!isSignup && step === "auth" && lockoutMessage && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25 }}
             className="text-xs text-amber-100/90 bg-amber-900/30 border border-amber-500/30 rounded-lg p-3"
           >
-            {lockoutMessage || LOCKOUT_NOTICE}
+            {lockoutMessage}
           </motion.div>
         )}
 
