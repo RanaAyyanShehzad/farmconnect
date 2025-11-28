@@ -217,6 +217,7 @@ function OrderManagement() {
   // Filter orders based on status and search term
   // In your filtering logic, replace the current filteredOrders with this:
   const searchTermLower = (searchTerm || "").toLowerCase();
+  const numericSearch = (searchTerm || "").replace(/\D/g, "");
   const filteredOrders = (orders || []).filter((order) => {
     const orderStatus = order.orderStatus || order.status || "";
     const matchesStatus =
@@ -253,7 +254,8 @@ function OrderManagement() {
 
     const phoneDigits =
       order.shippingAddress?.phoneNumber?.replace(/\D/g, "") || "";
-    const matchesPhone = phoneDigits.includes(searchTerm.replace(/\D/g, ""));
+    const matchesPhone =
+      numericSearch.length > 0 ? phoneDigits.includes(numericSearch) : false;
 
     return (
       matchesStatus &&
