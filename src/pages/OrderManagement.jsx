@@ -70,57 +70,78 @@ function OrderManagement() {
   }, []);
 
   // Handle product status change (multi-vendor system)
-  const handleProductStatusChange = async (orderId, productId, newStatus) => {
+  const handleProductStatusChange = async (
+    orderId,
+    productItemId,
+    newStatus
+  ) => {
+    if (!orderId || !productItemId) {
+      toast.error("Missing order or product information");
+      return;
+    }
+
     try {
+      // Validate IDs before making the request
+      if (!orderId || typeof orderId !== "string" || orderId.trim() === "") {
+        toast.error("Invalid order ID");
+        return;
+      }
+      if (
+        !productItemId ||
+        typeof productItemId !== "string" ||
+        productItemId.trim() === ""
+      ) {
+        toast.error("Invalid product item ID");
+        return;
+      }
+
       // Make API call to update product status
-      const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/product/${productId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
+      // productItemId should be the _id of the product item in the order's products array
+      const url = `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/product/${productItemId}/status`;
+
+      console.log("Updating product status:", {
+        orderId,
+        productItemId,
+        newStatus,
+        url,
+      });
+
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const responseData = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
+        console.error("API Error:", {
+          status: response.status,
+          data: responseData,
+        });
         throw new Error(
-          errorData.message || `Failed to update status: ${response.status}`
+          responseData.message || `Failed to update status: ${response.status}`
         );
       }
 
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || "Failed to update status");
+      if (!responseData.success) {
+        throw new Error(responseData.message || "Failed to update status");
       }
 
-      toast.success(data.message || "Product status updated successfully");
+      toast.success(
+        responseData.message || "Product status updated successfully"
+      );
 
-      // Refresh orders to get updated order status
+      // Update selected order with the response data from PATCH API
+      if (responseData.order) {
+        setSelectedOrder(responseData.order);
+      }
+
+      // Refresh orders list to show updated status
       await fetchOrders();
-
-      // Update selected order if it's the current one
-      if (selectedOrder && selectedOrder._id === orderId) {
-        const updatedOrderResponse = await fetch(
-          `https://agrofarm-vd8i.onrender.com/api/v1/order/item/${orderId}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-          }
-        );
-        if (updatedOrderResponse.ok) {
-          const updatedData = await updatedOrderResponse.json();
-          if (updatedData.success) {
-            setSelectedOrder(updatedData.order);
-          }
-        }
-      }
     } catch (err) {
       console.error("Error updating product status:", err);
       toast.error(err.message || "Failed to update product status");
@@ -194,12 +215,13 @@ function OrderManagement() {
       return product?.name?.toLowerCase().includes(searchTermLower);
     });
 
+    const customer = order.customer || order.buyerId;
     const matchesCustomerName =
-      order.customer?.name?.toLowerCase().includes(searchTermLower) || false;
+      customer?.name?.toLowerCase().includes(searchTermLower) || false;
     const matchesCustomerEmail =
-      order.customer?.email?.toLowerCase().includes(searchTermLower) || false;
+      customer?.email?.toLowerCase().includes(searchTermLower) || false;
     const matchesCustomerPhone =
-      order.customer?.phone?.toLowerCase().includes(searchTermLower) || false;
+      customer?.phone?.toLowerCase().includes(searchTermLower) || false;
 
     const matchesAddress =
       order.shippingAddress?.street?.toLowerCase().includes(searchTermLower) ||
@@ -226,7 +248,7 @@ function OrderManagement() {
     );
   });
 
-  // View order details
+  // View order details - Use order data directly (already has all information)
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
     setShowOrderDetails(true);
@@ -297,25 +319,8 @@ function OrderManagement() {
     try {
       setDownloadingInvoice(true);
 
-      // Fetch full order details to ensure we have all customer information
-      const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/v1/order/item/${order._id}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
-
-      let orderData = order;
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.order) {
-          orderData = data.order;
-        }
-      }
+      // Use the order data directly (already has all information from PATCH response)
+      const orderData = order;
 
       const doc = new jsPDF();
 
@@ -341,27 +346,22 @@ function OrderManagement() {
 
       // Customer Info
       const customerY = 72;
+      const customer = orderData.customer || orderData.buyerId;
       doc.setFontSize(11);
       doc.text("Customer Information:", 14, customerY);
       doc.setFontSize(10);
-      doc.text(`Name: ${orderData.customer?.name || "N/A"}`, 14, customerY + 6);
-      doc.text(
-        `Email: ${orderData.customer?.email || "N/A"}`,
-        14,
-        customerY + 12
-      );
+      doc.text(`Name: ${customer?.name || "N/A"}`, 14, customerY + 6);
+      doc.text(`Email: ${customer?.email || "N/A"}`, 14, customerY + 12);
       doc.text(
         `Phone: ${
-          orderData.customer?.phone ||
-          orderData.shippingAddress?.phoneNumber ||
-          "N/A"
+          customer?.phone || orderData.shippingAddress?.phoneNumber || "N/A"
         }`,
         14,
         customerY + 18
       );
 
       const addressText =
-        orderData.customer?.address ||
+        customer?.address ||
         `${orderData.shippingAddress?.street || ""}, ${
           orderData.shippingAddress?.city || ""
         }, ${orderData.shippingAddress?.zipCode || ""}`.replace(
@@ -725,10 +725,12 @@ function OrderManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {order.customer?.name || "N/A"}
+                        {(order.customer || order.buyerId)?.name || "N/A"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {order.customer?.email || order.customer?.phone || ""}
+                        {(order.customer || order.buyerId)?.email ||
+                          (order.customer || order.buyerId)?.phone ||
+                          ""}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -981,37 +983,48 @@ function OrderManagement() {
                         CUSTOMER INFORMATION
                       </h4>
                       <div className="space-y-3 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Name</span>
-                          <span className="font-medium text-gray-800">
-                            {selectedOrder.customer?.name || "N/A"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Email</span>
-                          <span className="font-medium text-gray-800">
-                            {selectedOrder.customer?.email || "N/A"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Phone</span>
-                          <span className="font-medium text-gray-800">
-                            {selectedOrder.customer?.phone ||
-                              selectedOrder.shippingAddress?.phoneNumber ||
-                              "N/A"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Address</span>
-                          <span className="text-right font-medium text-gray-800">
-                            {selectedOrder.customer?.address ||
-                              `${
-                                selectedOrder.shippingAddress?.street || "N/A"
-                              }, ${
-                                selectedOrder.shippingAddress?.city || "N/A"
-                              }`}
-                          </span>
-                        </div>
+                        {(() => {
+                          const customer =
+                            selectedOrder.customer || selectedOrder.buyerId;
+                          return (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Name</span>
+                                <span className="font-medium text-gray-800">
+                                  {customer?.name || "N/A"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Email</span>
+                                <span className="font-medium text-gray-800">
+                                  {customer?.email || "N/A"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Phone</span>
+                                <span className="font-medium text-gray-800">
+                                  {customer?.phone ||
+                                    selectedOrder.shippingAddress
+                                      ?.phoneNumber ||
+                                    "N/A"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Address</span>
+                                <span className="text-right font-medium text-gray-800">
+                                  {customer?.address ||
+                                    `${
+                                      selectedOrder.shippingAddress?.street ||
+                                      "N/A"
+                                    }, ${
+                                      selectedOrder.shippingAddress?.city ||
+                                      "N/A"
+                                    }`}
+                                </span>
+                              </div>
+                            </>
+                          );
+                        })()}
                         {selectedOrder.notes && (
                           <div className="flex justify-between">
                             <span className="text-gray-500">Order Notes</span>
@@ -1073,8 +1086,15 @@ function OrderManagement() {
                               productStatus === "cancelled" ||
                               productStatus === "canceled";
 
+                            // Get the product item ID - this should be the _id of the item in products array
+                            const productItemId = item._id;
+
+                            if (!productItemId) {
+                              console.warn("Product item missing _id:", item);
+                            }
+
                             return (
-                              <tr key={item._id || index}>
+                              <tr key={productItemId || index}>
                                 <td className="px-4 py-4">
                                   <div className="flex items-center space-x-3">
                                     {product.images?.[0] && (
@@ -1138,9 +1158,20 @@ function OrderManagement() {
                                     value={productStatus}
                                     onChange={(e) => {
                                       if (!isCancelled) {
+                                        // Use the product item ID already extracted above
+                                        if (!productItemId) {
+                                          toast.error(
+                                            "Product item ID not found. Please refresh the order details."
+                                          );
+                                          return;
+                                        }
+                                        if (!selectedOrder._id) {
+                                          toast.error("Order ID not found.");
+                                          return;
+                                        }
                                         handleProductStatusChange(
                                           selectedOrder._id,
-                                          item._id,
+                                          productItemId,
                                           e.target.value
                                         );
                                       }

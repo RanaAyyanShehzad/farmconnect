@@ -100,9 +100,9 @@ function MyOrders() {
 
     try {
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/v1/order/cancel/${orderId}`,
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/cancel`,
         {
-          method: "PUT",
+          method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
@@ -314,15 +314,19 @@ function MyOrders() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        order.status === "canceled" ||
-                        order.status === "cancelled"
+                        order.orderStatus === "canceled" ||
+                        order.orderStatus === "cancelled"
                           ? "bg-red-100 text-red-800"
-                          : order.status === "delivered"
+                          : order.orderStatus === "delivered"
                           ? "bg-green-100 text-green-800"
                           : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {order.status?.toUpperCase() || "PENDING"}
+                      {(
+                        order.orderStatus ||
+                        order.status ||
+                        "PENDING"
+                      )?.toUpperCase()}
                     </span>
                     <p className="text-lg font-semibold">
                       {formatCurrency(order.totalPrice || 0)}
@@ -381,7 +385,7 @@ function MyOrders() {
                           <p className="text-sm font-medium text-gray-900 mt-1">
                             Total:{" "}
                             {formatCurrency(
-                              (product.productId?.price || 0) *
+                              (product.productId?.price || product.price || 0) *
                                 (product.quantity || 1)
                             )}
                           </p>
@@ -390,12 +394,34 @@ function MyOrders() {
                           </p>
                           <p className="text-sm text-gray-500 mt-1">
                             Seller:{" "}
-                            {product.productId?.upLoadedBy?.uploaderName ||
+                            {product.farmerId?.name ||
+                              product.supplierId?.name ||
+                              product.productId?.upLoadedBy?.uploaderName ||
                               "Unknown Seller"}
                           </p>
+                          {product.status && (
+                            <p className="text-sm mt-1">
+                              Status:{" "}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  product.status === "cancelled" ||
+                                  product.status === "canceled"
+                                    ? "bg-red-100 text-red-800"
+                                    : product.status === "delivered"
+                                    ? "bg-green-100 text-green-800"
+                                    : product.status === "shipped"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}
+                              >
+                                {product.status?.toUpperCase() || "PROCESSING"}
+                              </span>
+                            </p>
+                          )}
 
                           {/* Review Button for Delivered Orders */}
-                          {order.status === "delivered" && (
+                          {(order.orderStatus === "delivered" ||
+                            order.status === "delivered") && (
                             <div className="mt-3">
                               <button
                                 onClick={() => openReviewModal(product)}
@@ -453,7 +479,9 @@ function MyOrders() {
                   </div>
                 </div>
 
-                {(order.status === "pending" ||
+                {(order.orderStatus === "pending" ||
+                  order.status === "pending" ||
+                  order.orderStatus === "confirmed" ||
                   order.status === "confirmed") && (
                   <div className="flex justify-end mt-6">
                     <button
