@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 function getOrderStatus(order) {
   return (order?.orderStatus || order?.status || "").toLowerCase();
 }
 
 function SupplierDashboard() {
+  const navigate = useNavigate();
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [revenue, setRevenue] = useState(0);
@@ -221,12 +223,13 @@ function SupplierDashboard() {
             <h2 className="text-lg font-semibold text-gray-800">
               Recent Orders
             </h2>
-            <a
-              href="#"
+            <button
+              type="button"
+              onClick={() => navigate("/supplier/orders")}
               className="text-green-600 hover:text-green-800 text-sm font-semibold"
             >
               View All
-            </a>
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">

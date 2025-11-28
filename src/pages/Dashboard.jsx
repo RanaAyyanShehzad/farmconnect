@@ -5,11 +5,13 @@ import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "../features/userSlice";
 import { useTranslation } from "../hooks/useTranslation";
 import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
+import { useNavigate } from "react-router-dom";
 
 const getOrderStatus = (order) =>
   (order?.orderStatus || order?.status || "").toLowerCase();
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [revenue, setRevenue] = useState(0);
@@ -285,12 +287,13 @@ function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-800">
               {t("dashboard.recentOrders")}
             </h2>
-            <a
-              href="#"
+            <button
+              type="button"
+              onClick={() => navigate("/farmer/orders")}
               className="text-green-600 hover:text-green-800 text-sm font-semibold"
             >
               {t("common.viewAll")}
-            </a>
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
