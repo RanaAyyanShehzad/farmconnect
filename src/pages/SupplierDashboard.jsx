@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
+function getOrderStatus(order) {
+  return (order?.orderStatus || order?.status || "").toLowerCase();
+}
+
 function SupplierDashboard() {
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
@@ -21,27 +25,46 @@ function SupplierDashboard() {
             withCredentials: true,
           }
         );
-        setActiveOrdersCount(ordersResponse.data.count);
+
+        const ordersData = ordersResponse.data || {};
+        let orders = [];
+
+        if (ordersData.success !== undefined) {
+          if (ordersData.success) {
+            orders = ordersData.orders || [];
+          } else {
+            throw new Error(ordersData.message || "Failed to load orders");
+          }
+        } else {
+          orders = ordersData.orders || ordersData || [];
+        }
+
+        setActiveOrdersCount(orders.length);
 
         // Calculate revenue from completed orders in current month
         const currentMonth = new Date().getMonth();
         const currentYear = new Date().getFullYear();
 
-        const completedOrders = ordersResponse.data.orders.filter(
-          (order) =>
-            order.status === "delivered" &&
+        const completedOrders = orders.filter((order) => {
+          const status = getOrderStatus(order);
+          return (
+            status === "delivered" &&
             new Date(order.createdAt).getMonth() === currentMonth &&
             new Date(order.createdAt).getFullYear() === currentYear
-        );
+          );
+        });
 
         const monthlyRevenue = completedOrders.reduce(
-          (sum, order) => sum + order.totalPrice,
+          (sum, order) => sum + (order.totalPrice || 0),
           0
         );
         setRevenue(monthlyRevenue);
 
-        // Set recent orders (first 3 orders)
-        setRecentOrders(ordersResponse.data.orders.slice(0, 3));
+        // Set recent orders (latest 3)
+        const sortedOrders = [...orders].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setRecentOrders(sortedOrders.slice(0, 3));
 
         // Fetch products count
         const productsResponse = await axios.get(
@@ -231,26 +254,52 @@ function SupplierDashboard() {
                     >
                       <td className="px-4 py-3">#{order._id.slice(-6)}</td>
                       <td className="px-4 py-3">
-                        {order.products[0]?.name || "N/A"}
+                        {order.products[0]?.productId?.name ||
+                          order.products[0]?.name ||
+                          "N/A"}
                       </td>
                       <td className="px-4 py-3">
-                        {order.userId?.slice(-6) || "N/A"}
+                        {(() => {
+                          const customer =
+                            order.customer ||
+                            (order.buyerId && typeof order.buyerId === "object"
+                              ? order.buyerId
+                              : null);
+                          return (
+                            customer?.name ||
+                            customer?.email ||
+                            customer?.phone ||
+                            "N/A"
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`px-2 py-1 text-xs font-semibold leading-tight rounded-full ${
-                            order.status === "completed"
-                              ? "text-green-700 bg-green-100"
-                              : order.status === "processing"
-                              ? "text-blue-700 bg-blue-100"
-                              : "text-yellow-700 bg-yellow-100"
-                          }`}
+                          className={`px-2 py-1 text-xs font-semibold leading-tight rounded-full ${(() => {
+                            const status = getOrderStatus(order);
+                            if (status === "delivered")
+                              return "text-green-700 bg-green-100";
+                            if (
+                              status === "processing" ||
+                              status === "confirmed"
+                            )
+                              return "text-blue-700 bg-blue-100";
+                            if (status === "pending")
+                              return "text-yellow-700 bg-yellow-100";
+                            if (status === "cancelled" || status === "canceled")
+                              return "text-red-700 bg-red-100";
+                            return "text-gray-700 bg-gray-100";
+                          })()}`}
                         >
-                          {order.status}
+                          {(
+                            order.orderStatus ||
+                            order.status ||
+                            "pending"
+                          ).toUpperCase()}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold">
-                        ₨ {order.totalPrice.toLocaleString()}
+                        ₨ {(order.totalPrice || 0).toLocaleString()}
                       </td>
                     </tr>
                   ))
@@ -265,8 +314,6 @@ function SupplierDashboard() {
             </table>
           </div>
         </div>
-
-        
       </div>
     </div>
   );
