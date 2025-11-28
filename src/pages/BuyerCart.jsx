@@ -154,8 +154,50 @@ function BuyerCart() {
         throw new Error("Failed to fetch cart items");
       }
       const data = await response.json();
-      setCartItems(data.cart?.products || []);
+
+      // Map the products to include both cart item info and product details
+      const items =
+        data.cart?.products?.map((cartItem) => {
+          const product = cartItem.productId || cartItem;
+          const isUnavailable =
+            product &&
+            (product.isDeleted || !product.isActive || !product.isAvailable);
+
+          return {
+            // Cart item properties
+            _id: cartItem._id, // Cart item ID
+            quantity: cartItem.quantity || 0, // Quantity in cart
+
+            // Product properties
+            productId: product?._id,
+            name: product?.name || "Unknown Product",
+            description: product?.description,
+            price: product?.price || 0,
+            unit: product?.unit || "",
+            availableQuantity: product?.quantity, // Available stock
+            category: product?.category,
+            isAvailable: product?.isAvailable,
+            images: product?.images,
+            supplier: product?.upLoadedBy,
+            isDeleted: product?.isDeleted || false,
+            isActive: product?.isActive !== false,
+            isUnavailable: isUnavailable || false,
+          };
+        }) || [];
+
+      setCartItems(items);
       setCartId(data.cart?._id); // Store the cart ID
+
+      // Show warning for unavailable products
+      const unavailableCount = items.filter(
+        (item) => item.isUnavailable
+      ).length;
+      if (unavailableCount > 0) {
+        toast.warning(
+          `${unavailableCount} product(s) in your cart are no longer available. Please remove them before checkout.`,
+          { autoClose: 6000 }
+        );
+      }
     } catch (err) {
       setError(err.message || "Failed to fetch cart items");
     } finally {
@@ -168,7 +210,7 @@ function BuyerCart() {
   }, []);
 
   const total = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
     0
   );
 
@@ -202,12 +244,6 @@ function BuyerCart() {
         toast.error(errorData.message || "Failed to update quantity");
       }
 
-      setCartItems(
-        cartItems.map((item) =>
-          item._id === id ? { ...item, quantity: newQuantity } : item
-        )
-      );
-
       const refreshResponse = await fetch(
         "https://agrofarm-vd8i.onrender.com/api/cart/my-cart",
         {
@@ -220,8 +256,27 @@ function BuyerCart() {
       );
 
       if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setCartItems(data.cart?.products || []);
+        const refreshData = await refreshResponse.json();
+        const refreshItems =
+          refreshData.cart?.products?.map((cartItem) => {
+            const product = cartItem.productId || cartItem;
+            return {
+              _id: cartItem._id,
+              quantity: cartItem.quantity || 0,
+              productId: product?._id,
+              name: product?.name || "Unknown Product",
+              price: product?.price || 0,
+              unit: product?.unit || "",
+              images: product?.images,
+              supplier: product?.upLoadedBy,
+              isUnavailable:
+                product &&
+                (product.isDeleted ||
+                  !product.isActive ||
+                  !product.isAvailable),
+            };
+          }) || [];
+        setCartItems(refreshItems);
         setCartId(data.cart?._id);
       }
     } catch (err) {
@@ -302,7 +357,26 @@ function BuyerCart() {
 
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
-        setCartItems(data.cart?.products || []);
+        const refreshItems =
+          data.cart?.products?.map((cartItem) => {
+            const product = cartItem.productId || cartItem;
+            return {
+              _id: cartItem._id,
+              quantity: cartItem.quantity || 0,
+              productId: product?._id,
+              name: product?.name || "Unknown Product",
+              price: product?.price || 0,
+              unit: product?.unit || "",
+              images: product?.images,
+              supplier: product?.upLoadedBy,
+              isUnavailable:
+                product &&
+                (product.isDeleted ||
+                  !product.isActive ||
+                  !product.isAvailable),
+            };
+          }) || [];
+        setCartItems(refreshItems);
         setCartId(data.cart?._id);
       }
     } catch (err) {
@@ -312,7 +386,10 @@ function BuyerCart() {
   };
 
   const formatCurrency = (amount) => {
-    return `₨ ${amount.toLocaleString()}`;
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return `₨ 0`;
+    }
+    return `₨ ${Number(amount).toLocaleString()}`;
   };
 
   if (loading) {
@@ -426,15 +503,44 @@ function BuyerCart() {
                           <div className="flex flex-col h-full">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                  {item.name}
-                                </h3>
-                                <p className="mt-1 text-sm text-gray-600">
-                                  Farmer: {item.supplier?.userID}
+                                <div className="flex items-center gap-2">
+                                  <h3
+                                    className={`text-lg font-semibold ${
+                                      item.isUnavailable
+                                        ? "text-gray-400 line-through"
+                                        : "text-gray-900"
+                                    }`}
+                                  >
+                                    {item.name}
+                                  </h3>
+                                  {item.isUnavailable && (
+                                    <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
+                                      Unavailable
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={`mt-1 text-sm ${
+                                    item.isUnavailable
+                                      ? "text-gray-400"
+                                      : "text-gray-600"
+                                  }`}
+                                >
+                                  Supplier:{" "}
+                                  {item.supplier?.uploaderName ||
+                                    item.supplier?.userID ||
+                                    "Unknown"}
                                 </p>
                               </div>
-                              <p className="text-lg font-semibold text-green-700">
-                                {formatCurrency(item.price)} / unit
+                              <p
+                                className={`text-lg font-semibold ${
+                                  item.isUnavailable
+                                    ? "text-gray-400"
+                                    : "text-green-700"
+                                }`}
+                              >
+                                {formatCurrency(item.price)} /{" "}
+                                {item.unit || "unit"}
                               </p>
                             </div>
 
@@ -469,7 +575,9 @@ function BuyerCart() {
 
                               <div className="flex items-center gap-4">
                                 <p className="font-semibold text-gray-900">
-                                  {formatCurrency(item.price * item.quantity)}
+                                  {formatCurrency(
+                                    (item.price || 0) * (item.quantity || 0)
+                                  )}
                                 </p>
                                 <button
                                   onClick={() => removeItem(item._id)}
@@ -515,12 +623,31 @@ function BuyerCart() {
                       <p className="text-green-700">{formatCurrency(total)}</p>
                     </div>
 
-                    <button
-                      onClick={() => setShowCheckoutModal(true)}
-                      className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md transition-colors"
-                    >
-                      Proceed to Checkout
-                    </button>
+                    {(() => {
+                      const hasUnavailableItems = cartItems.some(
+                        (item) => item.isUnavailable
+                      );
+                      return (
+                        <button
+                          onClick={() => setShowCheckoutModal(true)}
+                          disabled={hasUnavailableItems}
+                          className={`w-full py-3 px-4 text-white font-medium rounded-lg shadow-md transition-colors ${
+                            hasUnavailableItems
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : "bg-green-600 hover:bg-green-700"
+                          }`}
+                          title={
+                            hasUnavailableItems
+                              ? "Please remove unavailable products before checkout"
+                              : ""
+                          }
+                        >
+                          {hasUnavailableItems
+                            ? "Remove Unavailable Items First"
+                            : "Proceed to Checkout"}
+                        </button>
+                      );
+                    })()}
 
                     <button
                       onClick={() => {

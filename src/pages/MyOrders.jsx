@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function MyOrders() {
   const [orders, setOrders] = useState([]);
@@ -14,6 +15,18 @@ function MyOrders() {
   });
   const [submittingReview, setSubmittingReview] = useState(false);
   const navigate = useNavigate();
+  const { role } = useAuth();
+
+  // Get the appropriate products page based on user role
+  const getProductsPage = () => {
+    if (role === "farmer") {
+      return "/farmer/farmerProducts";
+    } else if (role === "buyer") {
+      return "/buyer/products";
+    }
+    // Fallback (should not happen in protected routes)
+    return "/";
+  };
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -87,9 +100,9 @@ function MyOrders() {
 
     try {
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/v1/order/cancel/${orderId}`,
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/cancel`,
         {
-          method: "PUT",
+          method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
@@ -244,7 +257,7 @@ function MyOrders() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-green-800">My Orders</h1>
         <button
-          onClick={() => navigate("/farmer/farmerProducts")}
+          onClick={() => navigate(getProductsPage())}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition"
         >
           Continue Shopping
@@ -275,7 +288,7 @@ function MyOrders() {
             You haven't placed any orders yet
           </p>
           <button
-            onClick={() => navigate("/farmer/farmerProducts")}
+            onClick={() => navigate(getProductsPage())}
             className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md transition-colors"
           >
             Browse Products
@@ -301,15 +314,19 @@ function MyOrders() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        order.status === "canceled" ||
-                        order.status === "cancelled"
+                        order.orderStatus === "canceled" ||
+                        order.orderStatus === "cancelled"
                           ? "bg-red-100 text-red-800"
-                          : order.status === "delivered"
+                          : order.orderStatus === "delivered"
                           ? "bg-green-100 text-green-800"
                           : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {order.status?.toUpperCase() || "PENDING"}
+                      {(
+                        order.orderStatus ||
+                        order.status ||
+                        "PENDING"
+                      )?.toUpperCase()}
                     </span>
                     <p className="text-lg font-semibold">
                       {formatCurrency(order.totalPrice || 0)}
@@ -368,7 +385,7 @@ function MyOrders() {
                           <p className="text-sm font-medium text-gray-900 mt-1">
                             Total:{" "}
                             {formatCurrency(
-                              (product.productId?.price || 0) *
+                              (product.productId?.price || product.price || 0) *
                                 (product.quantity || 1)
                             )}
                           </p>
@@ -377,12 +394,34 @@ function MyOrders() {
                           </p>
                           <p className="text-sm text-gray-500 mt-1">
                             Seller:{" "}
-                            {product.productId?.upLoadedBy?.uploaderName ||
+                            {product.farmerId?.name ||
+                              product.supplierId?.name ||
+                              product.productId?.upLoadedBy?.uploaderName ||
                               "Unknown Seller"}
                           </p>
+                          {product.status && (
+                            <p className="text-sm mt-1">
+                              Status:{" "}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  product.status === "cancelled" ||
+                                  product.status === "canceled"
+                                    ? "bg-red-100 text-red-800"
+                                    : product.status === "delivered"
+                                    ? "bg-green-100 text-green-800"
+                                    : product.status === "shipped"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}
+                              >
+                                {product.status?.toUpperCase() || "PROCESSING"}
+                              </span>
+                            </p>
+                          )}
 
                           {/* Review Button for Delivered Orders */}
-                          {order.status === "delivered" && (
+                          {(order.orderStatus === "delivered" ||
+                            order.status === "delivered") && (
                             <div className="mt-3">
                               <button
                                 onClick={() => openReviewModal(product)}
@@ -440,7 +479,9 @@ function MyOrders() {
                   </div>
                 </div>
 
-                {(order.status === "pending" ||
+                {(order.orderStatus === "pending" ||
+                  order.status === "pending" ||
+                  order.orderStatus === "confirmed" ||
                   order.status === "confirmed") && (
                   <div className="flex justify-end mt-6">
                     <button
