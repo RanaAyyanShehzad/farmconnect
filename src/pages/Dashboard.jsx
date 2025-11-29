@@ -6,6 +6,21 @@ import { setUser } from "../features/userSlice";
 import { useTranslation } from "../hooks/useTranslation";
 import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 import { useNavigate } from "react-router-dom";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 const getOrderStatus = (order) =>
   (order?.orderStatus || order?.status || "").toLowerCase();
@@ -18,6 +33,8 @@ function Dashboard() {
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [revenueData, setRevenueData] = useState([]);
+  const [orderStatusData, setOrderStatusData] = useState([]);
   const { t } = useTranslation();
   const {
     data: weatherData,
@@ -103,6 +120,44 @@ function Dashboard() {
         );
         setRevenue(monthlyRevenue);
 
+        // Prepare revenue chart data (last 6 months)
+        const revenueChartData = [];
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthOrders = orders.filter((order) => {
+            const orderDate = new Date(order.createdAt);
+            return (
+              orderDate.getMonth() === date.getMonth() &&
+              orderDate.getFullYear() === date.getFullYear() &&
+              getOrderStatus(order) === "delivered"
+            );
+          });
+          const monthRevenue = monthOrders.reduce(
+            (sum, order) => sum + (order.totalPrice || 0),
+            0
+          );
+          revenueChartData.push({
+            month: date.toLocaleDateString("en-US", { month: "short" }),
+            revenue: monthRevenue,
+          });
+        }
+        setRevenueData(revenueChartData);
+
+        // Prepare order status chart data
+        const statusCounts = {};
+        orders.forEach((order) => {
+          const status = getOrderStatus(order);
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        });
+        const statusData = Object.entries(statusCounts).map(
+          ([name, value]) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            value,
+          })
+        );
+        setOrderStatusData(statusData);
+
         // Set recent orders (latest 3)
         const sortedOrders = [...orders].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
@@ -165,8 +220,17 @@ function Dashboard() {
 
   if (error) {
     return (
-      <div className="p-4 text-red-500">
-        {t("weather.errorTitle")}: {error}
+      <div className="p-4">
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded">
+          <p className="font-semibold">{t("weather.errorTitle") || "Error"}</p>
+          <p>{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -277,6 +341,93 @@ function Dashboard() {
           bgColor="bg-sky-50"
           textColor="text-sky-700"
         />
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Revenue Chart */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Revenue Trend (Last 6 Months)
+          </h2>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => [
+                    `₨ ${value.toLocaleString()}`,
+                    "Revenue",
+                  ]}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ fill: "#10b981", r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Order Status Chart */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Orders by Status
+          </h2>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            </div>
+          ) : orderStatusData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={orderStatusData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {orderStatusData.map((entry, index) => {
+                    const colors = [
+                      "#10b981",
+                      "#3b82f6",
+                      "#f59e0b",
+                      "#ef4444",
+                      "#8b5cf6",
+                    ];
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={colors[index % colors.length]}
+                      />
+                    );
+                  })}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No order data available
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Content Sections */}

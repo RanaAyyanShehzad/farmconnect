@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
 import { useProductPreview } from "../hooks/useProductPreview.jsx";
 
 const BuyerProducts = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -318,13 +320,13 @@ const BuyerProducts = () => {
                       <img
                         src={product.images[0]}
                         alt={product.name}
-                        className="w-full h-full cursor-zoom-in object-cover"
-                        onClick={() => openPreview(product)}
+                        className="w-full h-full cursor-pointer object-cover hover:scale-105 transition-transform duration-300"
+                        onClick={() => navigate(`/product/${product._id}`)}
                       />
                     ) : (
                       <div
-                        className="absolute inset-0 flex cursor-zoom-in items-center justify-center text-gray-400"
-                        onClick={() => openPreview(product)}
+                        className="absolute inset-0 flex cursor-pointer items-center justify-center text-gray-400"
+                        onClick={() => navigate(`/product/${product._id}`)}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -376,7 +378,10 @@ const BuyerProducts = () => {
                   </div>
                   <div className="p-5 flex-grow flex flex-col">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-xl font-semibold text-gray-800">
+                      <h3
+                        className="text-xl font-semibold text-gray-800 cursor-pointer hover:text-green-600 transition"
+                        onClick={() => navigate(`/product/${product._id}`)}
+                      >
                         {product.name}
                       </h3>
                       <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
@@ -413,7 +418,13 @@ const BuyerProducts = () => {
                       {product.upLoadedBy?.uploaderName || "Unknown Seller"}
                     </div>
 
-                    <div className="mt-auto flex justify-center items-center">
+                    <div className="mt-auto flex gap-2 justify-center items-center">
+                      <button
+                        onClick={() => navigate(`/product/${product._id}`)}
+                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition flex-1"
+                      >
+                        View Details
+                      </button>
                       <button
                         disabled={!product.isAvailable}
                         onClick={() => addToCart(product._id)}
@@ -421,7 +432,7 @@ const BuyerProducts = () => {
                           product.isAvailable
                             ? "bg-green-600 hover:bg-green-700 text-white"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        } transition`}
+                        } transition flex-1`}
                       >
                         {product.isAvailable ? "Add to Cart" : "Unavailable"}
                       </button>

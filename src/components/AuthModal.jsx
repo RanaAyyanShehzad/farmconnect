@@ -12,6 +12,7 @@ const API_MAP = {
   Farmer: "https://agrofarm-vd8i.onrender.com/api/farmers",
   Buyer: "https://agrofarm-vd8i.onrender.com/api/buyers",
   Supplier: "https://agrofarm-vd8i.onrender.com/api/suppliers",
+  Admin: "https://agrofarm-vd8i.onrender.com/api/v1/admin",
 };
 
 const roleVariants = {
@@ -55,6 +56,7 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [isSignup, setIsSignup] = useState(false);
   const [role, setRole] = useState("Farmer");
   const [formData, setFormData] = useState(() => ({ ...INITIAL_FORM_DATA }));
+  const [showAdminOption, setShowAdminOption] = useState(false);
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState("auth"); // auth | otp | forgot | reset
@@ -136,6 +138,25 @@ const AuthModal = ({ isOpen, onClose }) => {
     const { name, value } = e.target;
     clearFormFeedback();
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Auto-detect admin email pattern
+    if (name === "email" && value) {
+      const emailLower = value.toLowerCase().trim();
+      // Check for specific admin email or admin-related patterns
+      const isAdminEmail =
+        emailLower === "nadeem.rana0257@gmail.com" ||
+        emailLower.includes("admin") ||
+        emailLower.endsWith("@admin.farmconnect.com") ||
+        emailLower.endsWith("@farmconnect.admin");
+
+      if (isAdminEmail && !showAdminOption) {
+        setShowAdminOption(true);
+      } else if (!isAdminEmail && showAdminOption && role !== "Admin") {
+        // Hide admin option if user changes to non-admin email (unless already selected)
+        setShowAdminOption(false);
+      }
+    }
+
     const validationOptions =
       name === "password" ? { enforceComplexity: isSignup } : undefined;
     setFieldErrors((prev) => ({
@@ -170,6 +191,8 @@ const AuthModal = ({ isOpen, onClose }) => {
     setFormData({ ...INITIAL_FORM_DATA });
     setIsSignup(false);
     setShowPassword({ auth: false, reset: false });
+    setShowAdminOption(false);
+    setRole("Farmer");
     onClose();
   };
 
@@ -278,31 +301,94 @@ const AuthModal = ({ isOpen, onClose }) => {
       const apiBase = API_MAP[role];
       if (!apiBase) throw new Error("Invalid role selected");
 
-      const endpoint = isSignup ? `${apiBase}/new` : `${apiBase}/login`;
+      // Admin only supports login, not signup
+      if (role === "Admin" && isSignup) {
+        throw new Error(
+          "Admin accounts cannot be created through this interface"
+        );
+      }
 
-      const body = isSignup
-        ? {
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            phone: formData.phone,
-            address: formData.address,
+      // Admin uses different endpoint structure - try multiple possible endpoints
+      let response;
+      let data;
+      const loginBody = {
+        email: formData.email,
+        password: formData.password,
+      };
+
+      if (role === "Admin") {
+        // Admin login endpoint: /api/v1/admin/login (NOT /api/v1/auth/login)
+        const adminLoginEndpoint = `${apiBase}/login`;
+
+        try {
+          response = await fetch(adminLoginEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(loginBody),
+            credentials: "include",
+          });
+
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            const text = await response.text();
+            throw new Error(
+              response.status === 404
+                ? "Admin login endpoint not found. Please check the API endpoint."
+                : response.status === 500
+                ? "Server error. Please try again later."
+                : `Unexpected response. Status: ${response.status}`
+            );
           }
-        : {
-            email: formData.email,
-            password: formData.password,
-          };
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        credentials: "include",
-      });
+          data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "Authentication failed");
+          }
+        } catch (err) {
+          throw err instanceof Error
+            ? err
+            : new Error(
+                "Admin login failed. Please check your credentials or contact administrator."
+              );
+        }
+      } else {
+        // Regular user login (Farmer, Buyer, Supplier)
+        const endpoint = isSignup ? `${apiBase}/new` : `${apiBase}/login`;
+        const body = isSignup
+          ? {
+              name: formData.name,
+              email: formData.email,
+              password: formData.password,
+              phone: formData.phone,
+              address: formData.address,
+            }
+          : loginBody;
 
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Authentication failed");
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          credentials: "include",
+        });
+
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          throw new Error(
+            response.status === 404
+              ? "Endpoint not found. Please check the API endpoint."
+              : response.status === 500
+              ? "Server error. Please try again later."
+              : `Unexpected response. Status: ${response.status}`
+          );
+        }
+
+        data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || "Authentication failed");
+        }
+      }
 
       if (isSignup) {
         setSuccessMessage(
@@ -333,6 +419,7 @@ const AuthModal = ({ isOpen, onClose }) => {
           onClose();
           if (normalizedRole === "farmer") navigate("/farmer");
           else if (normalizedRole === "buyer") navigate("/buyer");
+          else if (normalizedRole === "admin") navigate("/admin");
           else navigate("/supplier");
         }, 1500);
       }
@@ -993,7 +1080,7 @@ const AuthModal = ({ isOpen, onClose }) => {
 
             {step === "auth" && (
               <motion.div
-                className="flex justify-center space-x-3 mb-6"
+                className="flex justify-center flex-wrap gap-3 mb-6"
                 initial="hidden"
                 animate="visible"
                 exit="exit"
@@ -1025,6 +1112,29 @@ const AuthModal = ({ isOpen, onClose }) => {
                     {r}
                   </motion.button>
                 ))}
+                {/* Hidden Admin Option - appears when admin email is detected or logo clicked 5 times */}
+                {showAdminOption && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={() => {
+                      setRole("Admin");
+                      setIsSignup(false); // Admin can only login, not signup
+                      setFieldErrors({});
+                      clearFormFeedback();
+                    }}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      role === "Admin"
+                        ? "bg-purple-500/90 text-white shadow-lg shadow-purple-500/20"
+                        : "bg-purple-500/30 text-white hover:bg-purple-500/50"
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Admin
+                  </motion.button>
+                )}
               </motion.div>
             )}
 
@@ -1043,20 +1153,31 @@ const AuthModal = ({ isOpen, onClose }) => {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.7 }}
               >
-                {isSignup ? "Already have an account?" : "New to FarmConnect?"}
-                <motion.button
-                  onClick={() => {
-                    setIsSignup((prev) => !prev);
-                    setFieldErrors({});
-                    clearFormFeedback();
-                    setShowPassword((prev) => ({ ...prev, auth: false }));
-                  }}
-                  className="ml-2 text-green-300 hover:text-green-200 font-medium focus:outline-none"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {isSignup ? "Sign In" : "Create Account"}
-                </motion.button>
+                {role === "Admin" ? (
+                  <span className="text-xs text-purple-200">
+                    Admin accounts can only login. Contact system administrator
+                    for access.
+                  </span>
+                ) : (
+                  <>
+                    {isSignup
+                      ? "Already have an account?"
+                      : "New to FarmConnect?"}
+                    <motion.button
+                      onClick={() => {
+                        setIsSignup((prev) => !prev);
+                        setFieldErrors({});
+                        clearFormFeedback();
+                        setShowPassword((prev) => ({ ...prev, auth: false }));
+                      }}
+                      className="ml-2 text-green-300 hover:text-green-200 font-medium focus:outline-none"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      {isSignup ? "Sign In" : "Create Account"}
+                    </motion.button>
+                  </>
+                )}
               </motion.p>
             )}
 

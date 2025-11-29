@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 function BuyerDashboard() {
   const [ordersCount, setOrdersCount] = useState(0);
@@ -10,6 +22,8 @@ function BuyerDashboard() {
   const [recommendedProducts, setRecommendedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [orderChartData, setOrderChartData] = useState([]);
+  const [spendingData, setSpendingData] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -21,8 +35,33 @@ function BuyerDashboard() {
           "https://agrofarm-vd8i.onrender.com/api/v1/order/user-orders",
           { withCredentials: true }
         );
-        setOrdersCount(ordersResponse.data.orders?.length || 0);
-        setRecentOrders(ordersResponse.data.orders?.slice(0, 3) || []);
+        const allOrders = ordersResponse.data.orders || [];
+        setOrdersCount(allOrders.length);
+        setRecentOrders(allOrders.slice(0, 3) || []);
+
+        // Prepare order chart data (last 6 months)
+        const orderChartData = [];
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthOrders = allOrders.filter((order) => {
+            const orderDate = new Date(order.createdAt);
+            return (
+              orderDate.getMonth() === date.getMonth() &&
+              orderDate.getFullYear() === date.getFullYear()
+            );
+          });
+          orderChartData.push({
+            month: date.toLocaleDateString("en-US", { month: "short" }),
+            orders: monthOrders.length,
+            spending: monthOrders.reduce(
+              (sum, order) => sum + (order.totalPrice || 0),
+              0
+            ),
+          });
+        }
+        setOrderChartData(orderChartData);
+        setSpendingData(orderChartData);
 
         // Fetch wishlist count
         const wishlistResponse = await axios.get(
@@ -40,8 +79,9 @@ function BuyerDashboard() {
 
         // Fetch recommended products
         const productsResponse = await axios.get(
-          "https://agrofarm-vd8i.onrender.com/api/products/all",{
-            withCredentials:true,
+          "https://agrofarm-vd8i.onrender.com/api/products/all",
+          {
+            withCredentials: true,
           }
         );
         setRecommendedProducts(
@@ -205,6 +245,66 @@ function BuyerDashboard() {
         />
       </div>
 
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Orders Chart */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Orders Trend (Last 6 Months)
+          </h2>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={orderChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="orders" fill="#10b981" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Spending Chart */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Spending Trend (Last 6 Months)
+          </h2>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={spendingData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => [
+                    `₨ ${value.toLocaleString()}`,
+                    "Spending",
+                  ]}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="spending"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={{ fill: "#3b82f6", r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
       {/* Main Content Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Orders */}
@@ -304,15 +404,14 @@ function BuyerDashboard() {
             ) : recommendedProducts.length > 0 ? (
               recommendedProducts.map((product) => (
                 <Link
-                  to={`/buyer/products`}
+                  to={`/product/${product._id}`}
                   key={product._id}
                   className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg border-b-2 border-gray-400 transition-colors"
                 >
                   <div className="flex-shrink-0">
                     <img
                       src={
-                        product.images[0] ||
-                        "https://via.placeholder.com/50"
+                        product.images[0] || "https://via.placeholder.com/50"
                       }
                       alt={product.name}
                       className="w-12 h-12 object-cover rounded"
@@ -340,8 +439,6 @@ function BuyerDashboard() {
               </div>
             )}
           </div>
-
-         
         </div>
       </div>
     </div>

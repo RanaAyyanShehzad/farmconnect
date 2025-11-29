@@ -125,55 +125,59 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
           <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mb-2">
             {t("nav.section.main")}
           </p>
-          <NavItem to="" icon="grid" active={location.pathname === "/"}>
+          <NavItem
+            to="/farmer"
+            icon="grid"
+            active={location.pathname === "/farmer"}
+          >
             {t("nav.dashboard")}
           </NavItem>
           <NavItem
-            to="products"
+            to="/farmer/products"
             icon="plant"
-            active={location.pathname === "/products"}
+            active={location.pathname === "/farmer/products"}
           >
             {t("nav.products")}
           </NavItem>
           <NavItem
-            to="orders"
+            to="/farmer/orders"
             icon="shopping-cart"
-            active={location.pathname === "/orders"}
+            active={location.pathname === "/farmer/orders"}
           >
             {t("nav.orders")}
           </NavItem>
           <NavItem
-            to="weather"
+            to="/farmer/weather"
             icon="cloud-rain"
-            active={location.pathname === "/weather"}
+            active={location.pathname === "/farmer/weather"}
           >
             {t("nav.weather")}
           </NavItem>
           <NavItem
-            to="farmerProducts"
+            to="/farmer/farmerProducts"
             icon="search"
-            active={location.pathname === "/browse-products"}
+            active={location.pathname === "/farmer/farmerProducts"}
           >
             {t("nav.browse")}
           </NavItem>
           <NavItem
-            to="cart"
+            to="/farmer/cart"
             icon="shopping-cart"
-            active={location.pathname === "/cart"}
+            active={location.pathname === "/farmer/cart"}
           >
             {t("nav.cart")}
           </NavItem>
           <NavItem
-            to="wishlist"
+            to="/farmer/wishlist"
             icon="heart"
-            active={location.pathname === "/wishlist"}
+            active={location.pathname === "/farmer/wishlist"}
           >
             {t("nav.wishlist")}
           </NavItem>
           <NavItem
-            to="myorders"
+            to="/farmer/myorders"
             icon="shopping-cart"
-            active={location.pathname === "/myorders"}
+            active={location.pathname === "/farmer/myorders"}
           >
             {t("nav.myOrders")}
           </NavItem>
@@ -183,18 +187,13 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
           </p>
 
           <NavItem
-            to="farmerprofile"
+            to="/farmer/farmerprofile"
             icon="profile"
-            active={location.pathname === "/farmerprofile"}
+            active={location.pathname === "/farmer/farmerprofile"}
           >
             {t("nav.profile")}
           </NavItem>
-          <NavItem
-            onClick={handleLogout}
-            to="/"
-            icon="logout"
-            active={location.pathname === "/reports"}
-          >
+          <NavItem onClick={handleLogout} to="/" icon="logout" active={false}>
             {t("nav.logout")}
           </NavItem>
         </div>
@@ -234,7 +233,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
 }
 
 // Navigation Item component
-function NavItem({ to, icon, active, children }) {
+function NavItem({ to, icon, active, children, onClick }) {
   const icons = {
     grid: (
       <svg
@@ -405,7 +404,8 @@ function NavItem({ to, icon, active, children }) {
 
   return (
     <Link
-      to={to}
+      to={onClick ? "#" : to}
+      onClick={onClick}
       className={`flex items-center px-3 py-3 rounded-lg overflow-y-auto scrollbar-hide transition-all duration-200 ease-out hover:-translate-y-0.5 ${
         active
           ? "bg-green-500 text-white font-medium shadow-md"

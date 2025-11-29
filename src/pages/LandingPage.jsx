@@ -28,6 +28,17 @@ const LandingPage = () => {
   const { scrollY } = useScroll();
   const heroRef = useRef(null);
 
+  // Listen for custom event to open auth modal
+  useEffect(() => {
+    const handleOpenAuth = (event) => {
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener("openAuthModal", handleOpenAuth);
+    return () => {
+      window.removeEventListener("openAuthModal", handleOpenAuth);
+    };
+  }, []);
+
   // Parallax effect for hero image
   const heroImageY = useTransform(scrollY, [0, 500], [0, 150]);
   const heroOpacity = useTransform(scrollY, [0, 300], [1, 0]);

@@ -10,14 +10,26 @@ function WeatherBootstrap() {
   const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
+    // Only load weather if user is authenticated and not loading
+    // This prevents errors on landing page
     if (!isAuthenticated || loading) {
       return undefined;
     }
-    dispatch(loadWeather());
-    const intervalId = setInterval(() => {
+
+    try {
       dispatch(loadWeather());
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(intervalId);
+      const intervalId = setInterval(() => {
+        try {
+          dispatch(loadWeather());
+        } catch (error) {
+          console.error("Error loading weather:", error);
+        }
+      }, REFRESH_INTERVAL_MS);
+      return () => clearInterval(intervalId);
+    } catch (error) {
+      console.error("Error initializing weather:", error);
+      return undefined;
+    }
   }, [dispatch, isAuthenticated, loading]);
 
   return null;

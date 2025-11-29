@@ -7,6 +7,7 @@ import { store } from "./App/store";
 // Layouts
 import LandingPage from "./pages/LandingPage";
 import AdminLayout from "./components/AdminLayout";
+import FarmerLayout from "./components/FarmerLayout";
 import BuyerLayout from "./components/BuyerLayout";
 import SupplierLayout from "./components/SupplierLayout";
 
@@ -26,17 +27,27 @@ import BuyerDashboard from "./pages/BuyerDashboard";
 import BuyerProducts from "./pages/BuyerProducts";
 import BuyerCart from "./pages/BuyerCart";
 import BuyerProfile from "./pages/BuyerProfile";
+import ProductDetail from "./pages/ProductDetail";
 
 // Supplier Pages
 import SupplierDashboard from "./pages/SupplierDashboard";
 import SupplierProfile from "./pages/SupplierProfile";
+
+// Admin Pages
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminUserManagement from "./pages/AdminUserManagement";
+import AdminCategoryManagement from "./pages/AdminCategoryManagement";
+import AdminProducts from "./pages/AdminProducts";
+import AdminOrders from "./pages/AdminOrders";
+import AdminDisputeManagement from "./pages/AdminDisputeManagement";
+import AdminSystemConfig from "./pages/AdminSystemConfig";
 
 // Toast
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import ChatBotWidget from "./components/ChatBotWidget";
+import ConditionalChatBot from "./components/ConditionalChatBot";
 import WeatherBootstrap from "./components/WeatherBootstrap";
 import { LanguageProvider } from "./context/LanguageContext";
 
@@ -62,17 +73,18 @@ export default function App() {
               draggable
               pauseOnHover
             />
-            <ChatBotWidget />
+            <ConditionalChatBot />
             <Routes>
               {/* Public Route */}
               <Route path="/" element={<LandingPage />} />
+              <Route path="/product/:productId" element={<ProductDetail />} />
 
               {/* Protected Farmer Routes */}
               <Route
                 path="/farmer"
                 element={
                   <ProtectedRoute allowedRoles={["farmer"]}>
-                    <AdminLayout />
+                    <FarmerLayout />
                   </ProtectedRoute>
                 }
               >
@@ -97,6 +109,7 @@ export default function App() {
               >
                 <Route index element={<BuyerDashboard />} />
                 <Route path="products" element={<BuyerProducts />} />
+                <Route path="products/:productId" element={<ProductDetail />} />
                 <Route path="cart" element={<BuyerCart />} />
                 <Route path="myorders" element={<MyOrders />} />
                 <Route path="wishlist" element={<Whishlist />} />
@@ -116,6 +129,26 @@ export default function App() {
                 <Route path="orders" element={<OrderManagement />} />
                 <Route path="weather" element={<WeatherAlerts />} />
                 <Route path="profile" element={<SupplierProfile />} />
+              </Route>
+              {/* Protected Admin Routes */}
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <AdminLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUserManagement />} />
+                <Route
+                  path="categories"
+                  element={<AdminCategoryManagement />}
+                />
+                <Route path="products" element={<AdminProducts />} />
+                <Route path="orders" element={<AdminOrders />} />
+                <Route path="disputes" element={<AdminDisputeManagement />} />
+                <Route path="config" element={<AdminSystemConfig />} />
               </Route>
             </Routes>
           </BrowserRouter>
