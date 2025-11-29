@@ -6,6 +6,10 @@ import { setUser } from "../features/userSlice";
 import { useTranslation } from "../hooks/useTranslation";
 import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "../context/NotificationContext";
+import DisputeResponseModal from "../components/DisputeResponseModal";
+import { AlertCircle, Bell, Gavel } from "lucide-react";
+import { toast } from "react-toastify";
 import {
   LineChart,
   Line,
@@ -35,7 +39,11 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [revenueData, setRevenueData] = useState([]);
   const [orderStatusData, setOrderStatusData] = useState([]);
+  const [disputes, setDisputes] = useState([]);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [selectedDispute, setSelectedDispute] = useState(null);
   const { t } = useTranslation();
+  const { notifications, unreadCount } = useNotifications();
   const {
     data: weatherData,
     city,
@@ -73,6 +81,53 @@ function Dashboard() {
       transition: { duration: 0.3, ease: "easeOut" },
     },
   };
+  useEffect(() => {
+    fetchDisputes();
+  }, []);
+
+  const fetchDisputes = async () => {
+    try {
+      // Fetch orders with disputes for farmer/supplier
+      const ordersResponse = await axios.get(
+        "https://agrofarm-vd8i.onrender.com/api/v1/order/supplier-orders",
+        { withCredentials: true }
+      );
+      const orders = ordersResponse.data.orders || [];
+
+      // Extract disputes from orders that have open disputes
+      const orderDisputes = [];
+      for (const order of orders) {
+        if (
+          order.dispute_status &&
+          order.dispute_status !== "none" &&
+          order.dispute_status !== "closed"
+        ) {
+          // Create dispute object from order data
+          orderDisputes.push({
+            _id: order.dispute_id || order._id + "_dispute",
+            orderId: order._id,
+            status: order.dispute_status,
+            order: order,
+            buyerId:
+              order.customerId ||
+              (order.buyerId && typeof order.buyerId === "object"
+                ? order.buyerId
+                : null),
+            sellerId: { _id: "current_user" },
+            sellerRole: "farmer",
+            disputeType: order.dispute_type || "other",
+            reason: order.dispute_reason || "Dispute on order",
+            buyerProof: order.proofOfFault || null,
+            sellerResponse: order.dispute_response || null,
+          });
+        }
+      }
+      setDisputes(orderDisputes);
+    } catch (error) {
+      console.error("Error fetching disputes:", error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -640,6 +695,130 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Disputes & Notifications Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Disputes Section */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-orange-600" />
+              Active Disputes
+            </h2>
+            <button
+              onClick={() => navigate("/farmer/disputes")}
+              className="text-green-600 hover:text-green-800 text-sm font-semibold"
+            >
+              View All
+            </button>
+          </div>
+          {disputes.length > 0 ? (
+            <div className="space-y-3">
+              {disputes.slice(0, 3).map((dispute, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 bg-orange-50 border border-orange-200 rounded-lg"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        Order #{dispute.orderId?.slice(-8) || "N/A"}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Status: {dispute.status}
+                      </p>
+                    </div>
+                    {dispute.status === "open" && (
+                      <button
+                        onClick={() => {
+                          // Navigate to disputes page to handle dispute
+                          navigate("/farmer/disputes");
+                        }}
+                        className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition"
+                      >
+                        View & Respond
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No active disputes
+            </p>
+          )}
+        </div>
+
+        {/* Notifications Section */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-600" />
+              Notifications
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </h2>
+            <button
+              onClick={() => navigate("/notifications")}
+              className="text-green-600 hover:text-green-800 text-sm font-semibold"
+            >
+              View All
+            </button>
+          </div>
+          {notifications.length > 0 ? (
+            <div className="space-y-3">
+              {notifications.slice(0, 5).map((notification) => (
+                <motion.div
+                  key={notification._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`p-3 rounded-lg border ${
+                    notification.isRead
+                      ? "bg-gray-50 border-gray-200"
+                      : "bg-blue-50 border-blue-200"
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900">
+                    {notification.title}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                    {notification.message}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(notification.createdAt).toLocaleDateString()}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No notifications
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Dispute Response Modal */}
+      {showDisputeModal && selectedDispute && (
+        <DisputeResponseModal
+          isOpen={showDisputeModal}
+          onClose={() => {
+            setShowDisputeModal(false);
+            setSelectedDispute(null);
+          }}
+          dispute={selectedDispute}
+          onSuccess={() => {
+            fetchDisputes();
+            window.location.reload(); // Refresh dashboard data
+          }}
+        />
+      )}
     </div>
   );
 }

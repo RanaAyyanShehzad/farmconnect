@@ -577,32 +577,52 @@ function ShoppingCart() {
                             </div>
 
                             <div className="mt-auto pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                                <button
-                                  onClick={() =>
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600 font-medium">
+                                  Quantity:
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={item.availableQuantity || 999}
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const newQuantity =
+                                      parseInt(e.target.value) || 1;
+                                    const maxQty =
+                                      item.availableQuantity || 999;
+                                    const finalQuantity = Math.min(
+                                      Math.max(1, newQuantity),
+                                      maxQty
+                                    );
                                     updateQuantity(
                                       item.productId,
-                                      item.quantity - 1
-                                    )
-                                  }
-                                  className="px-3 py-1 bg-gray-50 text-gray-600 hover:bg-gray-300 transition-colors"
-                                >
-                                  -
-                                </button>
-                                <span className="px-4 py-1 bg-white border-x border-gray-200 text-center w-12">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  onClick={() =>
-                                    updateQuantity(
-                                      item.productId,
-                                      item.quantity + 1
-                                    )
-                                  }
-                                  className="px-3 py-1 bg-gray-50 text-gray-600 hover:bg-gray-300 transition-colors"
-                                >
-                                  +
-                                </button>
+                                      finalQuantity
+                                    );
+                                  }}
+                                  onBlur={(e) => {
+                                    const newQuantity =
+                                      parseInt(e.target.value) || 1;
+                                    const maxQty =
+                                      item.availableQuantity || 999;
+                                    const finalQuantity = Math.min(
+                                      Math.max(1, newQuantity),
+                                      maxQty
+                                    );
+                                    if (finalQuantity !== item.quantity) {
+                                      updateQuantity(
+                                        item.productId,
+                                        finalQuantity
+                                      );
+                                    }
+                                  }}
+                                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                />
+                                {item.availableQuantity && (
+                                  <span className="text-xs text-gray-500">
+                                    Max: {item.availableQuantity}
+                                  </span>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-4">

@@ -13,6 +13,9 @@ import {
   Search,
   Filter,
   RefreshCw,
+  Ban,
+  Key,
+  MoreVertical,
 } from "lucide-react";
 
 const API_BASE = "https://agrofarm-vd8i.onrender.com/api/v1/admin";
@@ -25,7 +28,15 @@ function AdminUserManagement() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLockModal, setShowLockModal] = useState(false);
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [lockDuration, setLockDuration] = useState(30);
+  const [suspensionReason, setSuspensionReason] = useState("");
+  const [suspendedUntil, setSuspendedUntil] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState([]);
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -96,17 +107,129 @@ function AdminUserManagement() {
     }
   };
 
-  const handleToggleStatus = async (user, action) => {
+  const handleToggleStatus = async (user, action, additionalData = {}) => {
     try {
       const response = await axios.put(
         `${API_BASE}/users/${user.role}/${user._id}/toggle-status`,
-        { action },
+        { action, ...additionalData },
         { withCredentials: true }
       );
       toast.success(response.data.message || "User status updated");
+      setShowLockModal(false);
+      setShowSuspendModal(false);
+      setLockDuration(30);
+      setSuspensionReason("");
+      setSuspendedUntil("");
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update status");
+    }
+  };
+
+  const handleSuspendUser = async () => {
+    if (!selectedUser || !suspensionReason.trim()) {
+      toast.error("Please provide a suspension reason");
+      return;
+    }
+    try {
+      const suspendData = {
+        suspensionReason,
+        ...(suspendedUntil && {
+          suspendedUntil: new Date(suspendedUntil).toISOString(),
+        }),
+      };
+      const response = await axios.post(
+        `${API_BASE}/users/${selectedUser.role}/${selectedUser._id}/suspend`,
+        suspendData,
+        { withCredentials: true }
+      );
+      toast.success(response.data.message || "User suspended successfully");
+      setShowSuspendModal(false);
+      setSuspensionReason("");
+      setSuspendedUntil("");
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to suspend user");
+    }
+  };
+
+  const handleUnsuspendUser = async (user) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE}/users/${user.role}/${user._id}/unsuspend`,
+        {},
+        { withCredentials: true }
+      );
+      toast.success(response.data.message || "User unsuspended successfully");
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to unsuspend user");
+    }
+  };
+
+  const validatePassword = (password) => {
+    const errors = [];
+    if (password.length < 8) {
+      errors.push("At least 8 characters");
+    }
+    if (!/[A-Z]/.test(password)) {
+      errors.push("One uppercase letter");
+    }
+    if (!/[a-z]/.test(password)) {
+      errors.push("One lowercase letter");
+    }
+    if (!/[0-9]/.test(password)) {
+      errors.push("One number");
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      errors.push("One special character");
+    }
+    return errors;
+  };
+
+  const handlePasswordChange = (password) => {
+    setResetPassword(password);
+    if (password) {
+      const errors = validatePassword(password);
+      setPasswordErrors(errors);
+    } else {
+      setPasswordErrors([]);
+    }
+  };
+
+  const handleForcePasswordReset = async () => {
+    if (!selectedUser) return;
+
+    // If password is provided, validate it
+    if (resetPassword && passwordErrors.length > 0) {
+      toast.error("Please fix password validation errors");
+      return;
+    }
+
+    try {
+      const requestData = resetPassword ? { newPassword: resetPassword } : {};
+
+      const response = await axios.post(
+        `${API_BASE}/users/${selectedUser.role}/${selectedUser._id}/reset-password`,
+        requestData,
+        { withCredentials: true }
+      );
+
+      if (response.data.temporaryPassword) {
+        toast.success(
+          `Password reset successfully. Temporary password: ${response.data.temporaryPassword}`,
+          { autoClose: 10000 }
+        );
+      } else {
+        toast.success(response.data.message || "Password reset successfully");
+      }
+      setShowPasswordResetModal(false);
+      setSelectedUser(null);
+      setResetPassword("");
+      setPasswordErrors([]);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to reset password");
     }
   };
 
@@ -122,6 +245,13 @@ function AdminUserManagement() {
       return (
         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
           Deleted
+        </span>
+      );
+    }
+    if (user.isSuspended) {
+      return (
+        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+          Suspended
         </span>
       );
     }
@@ -305,13 +435,46 @@ function AdminUserManagement() {
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleToggleStatus(user, "lock")}
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setShowLockModal(true);
+                                }}
                                 className="text-orange-600 hover:text-orange-900"
                                 title="Lock"
                               >
                                 <Lock className="w-5 h-5" />
                               </button>
                             )}
+                            {user.isSuspended ? (
+                              <button
+                                onClick={() => handleUnsuspendUser(user)}
+                                className="text-green-600 hover:text-green-900"
+                                title="Unsuspend"
+                              >
+                                <Ban className="w-5 h-5" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setShowSuspendModal(true);
+                                }}
+                                className="text-purple-600 hover:text-purple-900"
+                                title="Suspend"
+                              >
+                                <Ban className="w-5 h-5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowPasswordResetModal(true);
+                              }}
+                              className="text-indigo-600 hover:text-indigo-900"
+                              title="Reset Password"
+                            >
+                              <Key className="w-5 h-5" />
+                            </button>
                           </>
                         )}
                         <button
@@ -478,6 +641,238 @@ function AdminUserManagement() {
                 onClick={() => {
                   setShowDeleteModal(false);
                   setSelectedUser(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Lock User Modal */}
+      {showLockModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md"
+          >
+            <h2 className="text-2xl font-bold mb-4">Lock User</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Lock Duration (minutes)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={lockDuration}
+                onChange={(e) =>
+                  setLockDuration(parseInt(e.target.value) || 30)
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  handleToggleStatus(selectedUser, "lock", { lockDuration });
+                }}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+              >
+                Lock User
+              </button>
+              <button
+                onClick={() => {
+                  setShowLockModal(false);
+                  setSelectedUser(null);
+                  setLockDuration(30);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Suspend User Modal */}
+      {showSuspendModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md"
+          >
+            <h2 className="text-2xl font-bold mb-4">Suspend User</h2>
+            <div className="space-y-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Suspension Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={suspensionReason}
+                  onChange={(e) => setSuspensionReason(e.target.value)}
+                  placeholder="Enter reason for suspension..."
+                  rows="3"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Suspend Until (optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={suspendedUntil}
+                  onChange={(e) => setSuspendedUntil(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleSuspendUser}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+              >
+                Suspend User
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuspendModal(false);
+                  setSelectedUser(null);
+                  setSuspensionReason("");
+                  setSuspendedUntil("");
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {showPasswordResetModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md"
+          >
+            <h2 className="text-2xl font-bold mb-4">Reset Password</h2>
+            <p className="text-gray-600 mb-4">
+              Reset password for <strong>{selectedUser.name}</strong>
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                New Password (Optional)
+                <span className="text-xs text-gray-500 ml-2">
+                  Leave empty to generate temporary password
+                </span>
+              </label>
+              <input
+                type="password"
+                value={resetPassword}
+                onChange={(e) => handlePasswordChange(e.target.value)}
+                placeholder="Enter new password (optional)"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
+                  resetPassword && passwordErrors.length > 0
+                    ? "border-red-300 focus:border-red-500"
+                    : "border-gray-300"
+                }`}
+              />
+
+              {resetPassword && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-gray-700 mb-1">
+                    Password Requirements:
+                  </p>
+                  <ul className="text-xs space-y-1">
+                    <li
+                      className={
+                        resetPassword.length >= 8
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {resetPassword.length >= 8 ? "✓" : "✗"} At least 8
+                      characters
+                    </li>
+                    <li
+                      className={
+                        /[A-Z]/.test(resetPassword)
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {/[A-Z]/.test(resetPassword) ? "✓" : "✗"} One uppercase
+                      letter
+                    </li>
+                    <li
+                      className={
+                        /[a-z]/.test(resetPassword)
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {/[a-z]/.test(resetPassword) ? "✓" : "✗"} One lowercase
+                      letter
+                    </li>
+                    <li
+                      className={
+                        /[0-9]/.test(resetPassword)
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {/[0-9]/.test(resetPassword) ? "✓" : "✗"} One number
+                    </li>
+                    <li
+                      className={
+                        /[!@#$%^&*(),.?":{}|<>]/.test(resetPassword)
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {/[!@#$%^&*(),.?":{}|<>]/.test(resetPassword) ? "✓" : "✗"}{" "}
+                      One special character
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+              <p className="text-xs text-blue-800">
+                <strong>Note:</strong> If no password is provided, a temporary
+                password will be automatically generated and displayed.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleForcePasswordReset}
+                disabled={resetPassword && passwordErrors.length > 0}
+                className={`flex-1 px-4 py-2 rounded-lg transition ${
+                  resetPassword && passwordErrors.length > 0
+                    ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700"
+                }`}
+              >
+                Reset Password
+              </button>
+              <button
+                onClick={() => {
+                  setShowPasswordResetModal(false);
+                  setSelectedUser(null);
+                  setResetPassword("");
+                  setPasswordErrors([]);
                 }}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
               >

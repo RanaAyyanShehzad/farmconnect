@@ -30,6 +30,9 @@ function OrderManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage] = useState(10);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [orderToReject, setOrderToReject] = useState(null);
   const navigate = useNavigate();
 
   // Fetch orders from API with authentication
@@ -83,6 +86,88 @@ function OrderManagement() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Accept order (seller)
+  const handleAcceptOrder = async (orderId) => {
+    try {
+      const response = await fetch(
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/accept`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Order accepted successfully!");
+        fetchOrders(); // Refresh orders
+        if (selectedOrder && selectedOrder._id === orderId) {
+          setSelectedOrder(data.order);
+        }
+      } else {
+        toast.error(data.message || "Failed to accept order");
+      }
+    } catch (error) {
+      console.error("Error accepting order:", error);
+      toast.error("Failed to accept order. Please try again.");
+    }
+  };
+
+  // Reject order (seller)
+  const handleRejectOrder = async (orderId, reason) => {
+    if (!reason || reason.trim() === "") {
+      toast.error("Please provide a reason for rejection");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/reject`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ reason }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Order rejected successfully");
+        setShowRejectModal(false);
+        setRejectReason("");
+        setOrderToReject(null);
+        fetchOrders(); // Refresh orders
+        if (selectedOrder && selectedOrder._id === orderId) {
+          setSelectedOrder(data.order);
+        }
+      } else {
+        toast.error(data.message || "Failed to reject order");
+      }
+    } catch (error) {
+      console.error("Error rejecting order:", error);
+      toast.error("Failed to reject order. Please try again.");
+    }
+  };
+
+  // Check if order has pending products that need seller action
+  const hasPendingProducts = (order) => {
+    if (!order.products || order.products.length === 0) return false;
+    return order.products.some(
+      (product) =>
+        product.status === "pending" &&
+        !product.sellerAccepted &&
+        !product.sellerRejectedAt
+    );
+  };
 
   // Handle product status change (multi-vendor system)
   const handleProductStatusChange = async (
@@ -814,9 +899,30 @@ function OrderManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
+                        {hasPendingProducts(order) && (
+                          <>
+                            <button
+                              onClick={() => handleAcceptOrder(order._id)}
+                              className="text-green-600 hover:text-green-900 px-3 py-1 rounded-md hover:bg-green-50 transition text-xs font-medium"
+                              title="Accept Order"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => {
+                                setOrderToReject(order);
+                                setShowRejectModal(true);
+                              }}
+                              className="text-red-600 hover:text-red-900 px-3 py-1 rounded-md hover:bg-red-50 transition text-xs font-medium"
+                              title="Reject Order"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => viewOrderDetails(order)}
-                          className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50 transition"
+                          className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-50 transition"
                           title="View Details"
                         >
                           <FiEye className="h-5 w-5" />
@@ -944,29 +1050,42 @@ function OrderManagement() {
                 aria-modal="true"
               >
                 <div className="px-6 py-4 sm:px-8 sm:py-6">
-                  {/* Header */}
-                  <div className="flex justify-between items-start border-b pb-3">
+                  {/* Header with Gradient */}
+                  <div className="flex justify-between items-start border-b-2 border-gray-200 pb-4 mb-6">
                     <div>
-                      <h3 className="text-xl font-semibold text-gray-800">
+                      <h3 className="text-2xl font-bold text-gray-800 mb-1">
                         Order Details
                       </h3>
-                      <p className="text-sm text-gray-500">
-                        {selectedOrder._id}
+                      <p className="text-sm text-gray-500 font-mono">
+                        #{selectedOrder._id?.slice(-12).toUpperCase()}
                       </p>
                     </div>
                     <button
                       onClick={() => setShowOrderDetails(false)}
-                      className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                      className="text-gray-500 hover:text-red-600 focus:outline-none p-2 rounded-lg hover:bg-gray-100 transition-all"
                     >
                       <FiX className="h-6 w-6" />
                     </button>
                   </div>
 
                   {/* Grid Content */}
-                  <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  <div className="grid gap-6 sm:grid-cols-2">
                     {/* Order Info */}
-                    <div className="bg-gray-50 p-5 rounded-lg">
-                      <h4 className="text-sm font-semibold text-gray-600 mb-3">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl border border-blue-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-blue-800 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
                         ORDER INFORMATION
                       </h4>
                       <div className="space-y-3 text-sm">
@@ -1016,8 +1135,21 @@ function OrderManagement() {
                     </div>
 
                     {/* Customer Info */}
-                    <div className="bg-gray-50 p-5 rounded-lg">
-                      <h4 className="text-sm font-semibold text-gray-600 mb-3">
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-xl border border-green-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-green-800 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
+                        </svg>
                         CUSTOMER INFORMATION
                       </h4>
                       <div className="space-y-3 text-sm">
@@ -1094,12 +1226,25 @@ function OrderManagement() {
 
                   {/* Order Items */}
                   <div className="mt-6">
-                    <h4 className="text-sm font-semibold text-gray-600 mb-3">
+                    <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                      <svg
+                        className="w-5 h-5 text-green-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                        />
+                      </svg>
                       ORDER ITEMS
                     </h4>
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border-2 border-gray-200 rounded-xl overflow-hidden shadow-sm">
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-100 text-gray-600 uppercase">
+                        <thead className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 uppercase font-bold">
                           <tr>
                             <th className="px-4 py-3 text-left font-medium">
                               Product
@@ -1146,7 +1291,7 @@ function OrderManagement() {
                                       <img
                                         src={product.images[0]}
                                         alt={product.name}
-                                        className="h-10 w-10 rounded object-cover"
+                                        className="h-14 w-14 rounded-lg object-cover border-2 border-gray-200 shadow-sm"
                                       />
                                     )}
                                     <div>
@@ -1309,6 +1454,62 @@ function OrderManagement() {
                 </div>
               </motion.div>
             </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Reject Order Modal */}
+      <AnimatePresence>
+        {showRejectModal && orderToReject && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Reject Order
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Please provide a reason for rejecting this order. The buyer will
+                be notified of the rejection.
+              </p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rejection Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g., Product out of stock, Unable to fulfill order..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  rows="4"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectReason("");
+                    setOrderToReject(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() =>
+                    handleRejectOrder(orderToReject._id, rejectReason)
+                  }
+                  disabled={!rejectReason.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Reject Order
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import DisputeModal from "../components/DisputeModal";
 
 function MyOrders() {
   const [orders, setOrders] = useState([]);
@@ -14,6 +15,8 @@ function MyOrders() {
     comment: "",
   });
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [orderForDispute, setOrderForDispute] = useState(null);
   const navigate = useNavigate();
   const { role } = useAuth();
 
@@ -91,6 +94,41 @@ function MyOrders() {
       toast.error(err.message || "Failed to fetch orders");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Confirm order receipt (buyer)
+  const confirmOrderReceipt = async (orderId) => {
+    if (
+      !window.confirm(
+        "Confirm that you have received this order? This will complete the payment."
+      )
+    )
+      return;
+
+    try {
+      const response = await fetch(
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/confirm-receipt/${orderId}`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to confirm receipt");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Order receipt confirmed successfully");
+      fetchUserOrders(); // Refresh orders
+    } catch (err) {
+      console.error("Error confirming receipt:", err);
+      toast.error(err.message || "Failed to confirm receipt");
     }
   };
 
@@ -370,112 +408,188 @@ function MyOrders() {
                             </div>
                           )}
                         </div>
-                        <div className="flex-grow">
-                          <h4 className="text-sm font-medium text-gray-900">
-                            {product.productId?.name || "Unknown Product"}
-                          </h4>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Quantity: {product.quantity || "1"}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Price:{" "}
-                            {formatCurrency(product.productId?.price || 0)} per{" "}
-                            {product.productId?.unit}
-                          </p>
-                          <p className="text-sm font-medium text-gray-900 mt-1">
-                            Total:{" "}
-                            {formatCurrency(
-                              (product.productId?.price || product.price || 0) *
-                                (product.quantity || 1)
-                            )}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-1 capitalize">
-                            Category: {product.productId?.category}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Seller:{" "}
-                            {product.farmerId?.name ||
-                              product.supplierId?.name ||
-                              product.productId?.upLoadedBy?.uploaderName ||
-                              "Unknown Seller"}
-                          </p>
-                          {product.status && (
-                            <p className="text-sm mt-1">
-                              Status:{" "}
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  product.status === "cancelled" ||
-                                  product.status === "canceled"
-                                    ? "bg-red-100 text-red-800"
-                                    : product.status === "delivered"
-                                    ? "bg-green-100 text-green-800"
-                                    : product.status === "shipped"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {product.status?.toUpperCase() || "PROCESSING"}
-                              </span>
-                            </p>
-                          )}
+                        <div className="flex-grow w-full">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                            <div className="flex-grow">
+                              <h4 className="text-base font-bold text-gray-900 mb-2">
+                                {product.productId?.name || "Unknown Product"}
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500 font-medium">
+                                    Quantity:
+                                  </span>
+                                  <span className="text-gray-900 font-semibold">
+                                    {product.quantity || "1"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500 font-medium">
+                                    Price:
+                                  </span>
+                                  <span className="text-gray-900 font-semibold">
+                                    {formatCurrency(
+                                      product.productId?.price || 0
+                                    )}{" "}
+                                    / {product.productId?.unit}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500 font-medium">
+                                    Total:
+                                  </span>
+                                  <span className="text-green-600 font-bold text-base">
+                                    {formatCurrency(
+                                      (product.productId?.price ||
+                                        product.price ||
+                                        0) * (product.quantity || 1)
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500 font-medium">
+                                    Category:
+                                  </span>
+                                  <span className="text-gray-900 capitalize">
+                                    {product.productId?.category}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Seller:</span>{" "}
+                                  <span className="text-gray-900">
+                                    {product.farmerId?.name ||
+                                      product.supplierId?.name ||
+                                      product.productId?.upLoadedBy
+                                        ?.uploaderName ||
+                                      "Unknown Seller"}
+                                  </span>
+                                </p>
+                              </div>
+                              {product.status && (
+                                <div className="mt-3">
+                                  <p className="text-sm">
+                                    Status:{" "}
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        product.status === "cancelled" ||
+                                        product.status === "canceled"
+                                          ? "bg-red-100 text-red-800"
+                                          : product.status === "delivered"
+                                          ? "bg-green-100 text-green-800"
+                                          : product.status === "shipped"
+                                          ? "bg-blue-100 text-blue-800"
+                                          : "bg-yellow-100 text-yellow-800"
+                                      }`}
+                                    >
+                                      {product.status?.toUpperCase() ||
+                                        "PROCESSING"}
+                                    </span>
+                                  </p>
+                                </div>
+                              )}
 
-                          {/* Review Button for Delivered Orders */}
-                          {(order.orderStatus === "delivered" ||
-                            order.status === "delivered") && (
-                            <div className="mt-3">
-                              <button
-                                onClick={() => openReviewModal(product)}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition"
-                              >
-                                Add Review & Rating
-                              </button>
+                              {/* Review Button for Delivered Orders */}
+                              {(order.orderStatus === "delivered" ||
+                                order.status === "delivered") && (
+                                <div className="mt-3">
+                                  <button
+                                    onClick={() => openReviewModal(product)}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition shadow-md hover:shadow-lg"
+                                  >
+                                    Add Review & Rating
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <h3 className="text-md font-medium text-gray-900 mb-3">
+                <div className="border-t-2 border-gray-200 pt-6 mt-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-green-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
                     Shipping Information
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Address</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {order.shippingAddress?.street || "N/A"},{" "}
-                        {order.shippingAddress?.city || "N/A"},{" "}
-                        {order.shippingAddress?.zipCode || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {order.shippingAddress?.phoneNumber || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Payment Method</p>
-                      <p className="text-sm font-medium text-gray-900 capitalize">
-                        {order.paymentInfo?.method?.replace(/-/g, " ") || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Payment Status</p>
-                      <p className="text-sm font-medium text-gray-900 capitalize">
-                        {order.paymentInfo?.status || "N/A"}
-                      </p>
-                    </div>
-                    {order.notes && (
-                      <div className="md:col-span-2">
-                        <p className="text-sm text-gray-500">Order Notes</p>
+                  <div className="bg-gradient-to-br from-gray-50 to-white p-5 rounded-xl border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Address
+                        </p>
                         <p className="text-sm font-medium text-gray-900">
-                          {order.notes}
+                          {order.shippingAddress?.street || "N/A"},{" "}
+                          {order.shippingAddress?.city || "N/A"},{" "}
+                          {order.shippingAddress?.zipCode || "N/A"}
                         </p>
                       </div>
-                    )}
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Phone
+                        </p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {order.shippingAddress?.phoneNumber || "N/A"}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Payment Method
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 capitalize">
+                          {order.paymentInfo?.method?.replace(/-/g, " ") ||
+                            "N/A"}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Payment Status
+                        </p>
+                        <span
+                          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            order.paymentInfo?.status === "complete" ||
+                            order.paymentInfo?.status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : order.paymentInfo?.status === "pending"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {(order.paymentInfo?.status || "N/A").toUpperCase()}
+                        </span>
+                      </div>
+                      {order.notes && (
+                        <div className="md:col-span-2 bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                            Order Notes
+                          </p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {order.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -492,6 +606,62 @@ function MyOrders() {
                     </button>
                   </div>
                 )}
+
+                {/* Action Buttons for Delivered Orders */}
+                {(order.orderStatus === "delivered" ||
+                  order.status === "delivered") &&
+                  order.payment_status !== "complete" && (
+                    <div className="flex justify-end gap-3 mt-6">
+                      {order.dispute_status !== "open" &&
+                        order.dispute_status !== "pending_admin_review" && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setOrderForDispute(order);
+                                setShowDisputeModal(true);
+                              }}
+                              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
+                            >
+                              Create Dispute
+                            </button>
+                            <button
+                              onClick={() => confirmOrderReceipt(order._id)}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium"
+                            >
+                              Confirm Receipt
+                            </button>
+                          </>
+                        )}
+                      {order.dispute_status === "open" && (
+                        <span className="px-4 py-2 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
+                          Dispute in Progress
+                        </span>
+                      )}
+                      {order.dispute_status === "pending_admin_review" && (
+                        <span className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
+                          Awaiting Admin Review
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                {/* Dispute Button for Shipped Orders */}
+                {(order.orderStatus === "shipped" ||
+                  order.status === "shipped") &&
+                  order.dispute_status !== "open" &&
+                  order.dispute_status !== "pending_admin_review" && (
+                    <div className="flex justify-end mt-6">
+                      <button
+                        onClick={() => {
+                          setOrderForDispute(order);
+                          setShowDisputeModal(true);
+                        }}
+                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
+                      >
+                        Create Dispute
+                      </button>
+                    </div>
+                  )}
               </div>
             </div>
           ))}
@@ -626,6 +796,16 @@ function MyOrders() {
           </div>
         </div>
       )}
+
+      {/* Dispute Modal */}
+      <DisputeModal
+        isOpen={showDisputeModal}
+        onClose={() => {
+          setShowDisputeModal(false);
+          setOrderForDispute(null);
+        }}
+        order={orderForDispute}
+      />
     </div>
   );
 }

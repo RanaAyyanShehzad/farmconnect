@@ -52,10 +52,17 @@ function AuthProvider({ children }) {
         "https://agrofarm-vd8i.onrender.com/api/auth/check",
         {
           withCredentials: true,
+          // Treat 401 as a valid response (not an error) - it means user is not authenticated
+          validateStatus: (status) => status === 200 || status === 401,
         }
       );
 
-      if (res.data.authenticated) {
+      // Handle 401 response (user not authenticated)
+      if (res.status === 401 || !res.data?.authenticated) {
+        setIsAuthenticated(false);
+        setRole(null);
+        dispatch(clearUser());
+      } else if (res.data.authenticated) {
         setIsAuthenticated(true);
         const resolvedRole = normalizeRole(res.data.role);
         setRole(resolvedRole);
@@ -66,6 +73,11 @@ function AuthProvider({ children }) {
         dispatch(clearUser());
       }
     } catch (err) {
+      // Only log actual errors (network issues, server errors, etc.)
+      // 401 errors are now handled above via validateStatus, so they won't reach here
+      if (err.response?.status !== 401) {
+        console.error("Auth check error:", err);
+      }
       setIsAuthenticated(false);
       setRole(null);
       dispatch(clearUser());

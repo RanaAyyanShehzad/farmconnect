@@ -25,7 +25,10 @@ import {
   TrendingUp,
   AlertCircle,
   RefreshCw,
+  Bell,
+  Gavel,
 } from "lucide-react";
+import { useNotifications } from "../context/NotificationContext";
 
 const API_BASE = "https://agrofarm-vd8i.onrender.com/api/v1/admin";
 
@@ -44,10 +47,39 @@ function AdminDashboard() {
   const [orderChartData, setOrderChartData] = useState([]);
   const [productStatusData, setProductStatusData] = useState([]);
   const [revenueData, setRevenueData] = useState([]);
+  const [disputes, setDisputes] = useState([]);
+  const [disputesCount, setDisputesCount] = useState({
+    open: 0,
+    pending_review: 0,
+    total: 0,
+  });
+  const { notifications, unreadCount } = useNotifications();
 
   useEffect(() => {
     fetchDashboardData();
+    fetchDisputes();
   }, []);
+
+  const fetchDisputes = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/disputes?limit=5`, {
+        withCredentials: true,
+      });
+      if (response.data.success) {
+        const disputesData = response.data.disputes || [];
+        setDisputes(disputesData);
+        setDisputesCount({
+          open: disputesData.filter((d) => d.status === "open").length,
+          pending_review: disputesData.filter(
+            (d) => d.status === "pending_admin_review"
+          ).length,
+          total: response.data.total || disputesData.length,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching disputes:", error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -98,28 +130,78 @@ function AdminDashboard() {
         Object.entries(statusCounts).map(([name, value]) => ({ name, value }))
       );
 
-      // Fetch orders (we'll need to create an admin orders endpoint or use existing)
-      // For now, let's calculate from what we have
-      setStats((prev) => ({
-        ...prev,
-        totalOrders: 0, // Will be updated when order endpoint is available
-        totalRevenue: 0,
-      }));
-
-      // Prepare revenue chart data (last 6 months)
-      const revenueChartData = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date();
-        date.setMonth(date.getMonth() - i);
-        revenueChartData.push({
-          month: date.toLocaleDateString("en-US", { month: "short" }),
-          revenue: 0, // Will be updated when order data is available
+      // Fetch orders
+      try {
+        const ordersRes = await axios.get(`${API_BASE}/orders?limit=1000`, {
+          withCredentials: true,
         });
-      }
-      setRevenueData(revenueChartData);
+        const orders = ordersRes.data.orders || [];
 
-      // Prepare order chart data
-      setOrderChartData(revenueChartData);
+        // Calculate total orders and revenue
+        const totalOrders = orders.length;
+        const totalRevenue = orders.reduce((sum, order) => {
+          return sum + (order.totalPrice || 0);
+        }, 0);
+
+        setStats((prev) => ({
+          ...prev,
+          totalOrders,
+          totalRevenue,
+        }));
+
+        // Prepare revenue and order trend data (last 6 months)
+        const revenueChartData = [];
+        const orderTrendData = [];
+
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+          // Filter orders for this month
+          const monthOrders = orders.filter((order) => {
+            const orderDate = new Date(order.createdAt || order.orderDate);
+            return orderDate >= monthStart && orderDate <= monthEnd;
+          });
+
+          // Calculate revenue for this month
+          const monthRevenue = monthOrders.reduce((sum, order) => {
+            return sum + (order.totalPrice || 0);
+          }, 0);
+
+          // Count orders for this month
+          const monthOrderCount = monthOrders.length;
+
+          revenueChartData.push({
+            month: date.toLocaleDateString("en-US", { month: "short" }),
+            revenue: monthRevenue,
+          });
+
+          orderTrendData.push({
+            month: date.toLocaleDateString("en-US", { month: "short" }),
+            orders: monthOrderCount,
+          });
+        }
+
+        setRevenueData(revenueChartData);
+        setOrderChartData(orderTrendData);
+      } catch (orderError) {
+        console.warn("Could not fetch orders:", orderError);
+        // Set default empty data
+        const defaultData = [];
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          defaultData.push({
+            month: date.toLocaleDateString("en-US", { month: "short" }),
+            revenue: 0,
+            orders: 0,
+          });
+        }
+        setRevenueData(defaultData);
+        setOrderChartData(defaultData);
+      }
 
       setLoading(false);
     } catch (err) {
@@ -433,7 +515,7 @@ function AdminDashboard() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="revenue" fill="#3b82f6" />
+                <Bar dataKey="orders" fill="#3b82f6" name="Number of Orders" />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -492,6 +574,140 @@ function AdminDashboard() {
             <TrendingUp className="w-6 h-6 text-gray-600 mb-2" />
             <span className="text-sm font-medium text-gray-700">Config</span>
           </Link>
+        </div>
+      </div>
+
+      {/* Disputes & Notifications Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Disputes Section */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-orange-600" />
+              Disputes
+              {disputesCount.pending_review > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {disputesCount.pending_review} pending
+                </span>
+              )}
+            </h2>
+            <Link
+              to="/admin/disputes"
+              className="text-green-600 hover:text-green-800 text-sm font-semibold"
+            >
+              View All
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="bg-orange-50 p-3 rounded-lg">
+              <p className="text-xs text-gray-600">Open</p>
+              <p className="text-2xl font-bold text-orange-600">
+                {disputesCount.open}
+              </p>
+            </div>
+            <div className="bg-red-50 p-3 rounded-lg">
+              <p className="text-xs text-gray-600">Pending Review</p>
+              <p className="text-2xl font-bold text-red-600">
+                {disputesCount.pending_review}
+              </p>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-xs text-gray-600">Total</p>
+              <p className="text-2xl font-bold text-gray-600">
+                {disputesCount.total}
+              </p>
+            </div>
+          </div>
+          {disputes.length > 0 ? (
+            <div className="space-y-3">
+              {disputes.slice(0, 3).map((dispute) => (
+                <div
+                  key={dispute._id}
+                  className={`p-3 rounded-lg border ${
+                    dispute.status === "pending_admin_review"
+                      ? "bg-red-50 border-red-200"
+                      : "bg-orange-50 border-orange-200"
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        Dispute #{dispute._id?.slice(-8) || "N/A"}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Order: #
+                        {dispute.orderId?._id?.slice(-8) ||
+                          dispute.orderId?.slice(-8) ||
+                          "N/A"}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Type: {dispute.disputeType?.replace("_", " ") || "N/A"}
+                      </p>
+                    </div>
+                    <Link
+                      to="/admin/disputes"
+                      className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition"
+                    >
+                      Review
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No disputes found
+            </p>
+          )}
+        </div>
+
+        {/* Notifications Section */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-600" />
+              Notifications
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </h2>
+            <Link
+              to="/notifications"
+              className="text-green-600 hover:text-green-800 text-sm font-semibold"
+            >
+              View All
+            </Link>
+          </div>
+          {notifications.length > 0 ? (
+            <div className="space-y-3">
+              {notifications.slice(0, 5).map((notification) => (
+                <div
+                  key={notification._id}
+                  className={`p-3 rounded-lg border ${
+                    notification.isRead
+                      ? "bg-gray-50 border-gray-200"
+                      : "bg-blue-50 border-blue-200"
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900">
+                    {notification.title}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                    {notification.message}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(notification.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No notifications
+            </p>
+          )}
         </div>
       </div>
     </div>

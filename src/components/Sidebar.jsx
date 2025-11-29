@@ -42,17 +42,17 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
       {/* Sidebar */}
       <div
-        className={`fixed z-40 overflow-y-auto scrollbar-hide left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 transform h-screen  w-64 flex-shrink-0 transition-transform duration-200 ease-in-out shadow-lg 
-          bg-gradient-to-b from-green-700 to-green-600 ${
+        className={`fixed z-40 overflow-y-auto scrollbar-hide left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 transform h-screen w-64 flex-shrink-0 transition-transform duration-300 ease-in-out shadow-2xl 
+          bg-gradient-to-br from-green-700 via-green-600 to-green-800 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-64"
           }`}
       >
         {/* Sidebar header */}
-        <div className="flex justify-between items-center h-14 px-6 bg-gradient-to-b from-green-800 to-green-600  border-b border-green-600">
-          <div className="flex items-center space-x-3">
-            <div className="bg-yellow-400 p-2 rounded-full">
+        <div className="flex justify-between items-center h-14 px-6 bg-gradient-to-r from-green-800 via-green-700 to-green-800 border-b-2 border-yellow-400 shadow-lg">
+          <div className="flex items-center space-x-2">
+            <div className="bg-yellow-400 p-1.5 rounded-lg shadow-lg transform hover:scale-110 hover:rotate-6 transition-all duration-200">
               <svg
-                className="w-6 h-6 text-green-800"
+                className="w-5 h-5 text-green-800"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -67,13 +67,13 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
             </div>
             <Link
               to="/"
-              className="text-xl font-bold text-white tracking-wider"
+              className="text-lg font-bold text-white tracking-wider hover:text-yellow-400 transition-colors drop-shadow-md"
             >
               FarmConnect
             </Link>
           </div>
           <button
-            className="lg:hidden text-white hover:text-yellow-400 transition-colors duration-150"
+            className="lg:hidden text-white hover:text-yellow-400 transition-all duration-200 p-1.5 rounded-lg hover:bg-green-600/50 hover:scale-110"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Close sidebar"
           >
@@ -94,10 +94,10 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
         </div>
 
         {/* User info */}
-        <div className="flex items-center px-6 py-4 border-b border-green-600">
-          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+        <div className="flex items-center px-6 py-5 border-b-2 border-green-600/50 bg-gradient-to-r from-green-800/60 via-green-700/40 to-transparent backdrop-blur-sm">
+          <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-2 ring-yellow-300/50">
             <svg
-              className="w-6 h-6 text-white"
+              className="w-6 h-6 text-green-800"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -111,18 +111,21 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
             </svg>
           </div>
           <div className="ml-3">
-            <p className="text-white font-medium">{t("nav.welcome")}</p>
-            <p className="text-green-200 text-sm">{t("nav.account.farmer")}</p>
+            <p className="text-white font-bold text-sm">{t("nav.welcome")}</p>
+            <p className="text-yellow-300 text-xs font-semibold">
+              {t("nav.account.farmer")}
+            </p>
           </div>
         </div>
 
-        <div className="px-6 py-4 border-b border-green-600">
+        <div className="px-6 py-4 border-b-2 border-green-600/50 bg-gradient-to-r from-green-800/40 via-green-700/30 to-transparent backdrop-blur-sm">
           <LanguageToggle direction="row" className="justify-between" />
         </div>
 
         {/* Navigation */}
-        <div className="px-3 py-4 space-y-1">
-          <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mb-2">
+        <div className="px-3 py-4 space-y-2">
+          <p className="text-xs font-bold text-yellow-300 uppercase tracking-wider px-3 mb-3 flex items-center gap-2">
+            <div className="w-1 h-4 bg-yellow-400 rounded-full"></div>
             {t("nav.section.main")}
           </p>
           <NavItem
@@ -181,8 +184,16 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
           >
             {t("nav.myOrders")}
           </NavItem>
+          <NavItem
+            to="/farmer/disputes"
+            icon="gavel"
+            active={location.pathname === "/farmer/disputes"}
+          >
+            Disputes
+          </NavItem>
 
-          <p className="text-xs font-semibold text-green-200 uppercase tracking-wider px-3 mt-6 mb-2">
+          <p className="text-xs font-bold text-yellow-300 uppercase tracking-wider px-3 mt-6 mb-3 flex items-center gap-2">
+            <div className="w-1 h-4 bg-yellow-400 rounded-full"></div>
             {t("nav.section.other")}
           </p>
 
@@ -406,18 +417,24 @@ function NavItem({ to, icon, active, children, onClick }) {
     <Link
       to={onClick ? "#" : to}
       onClick={onClick}
-      className={`flex items-center px-3 py-3 rounded-lg overflow-y-auto scrollbar-hide transition-all duration-200 ease-out hover:-translate-y-0.5 ${
+      className={`flex items-center px-4 py-3 rounded-xl overflow-y-auto scrollbar-hide transition-all duration-300 ease-out group ${
         active
-          ? "bg-green-500 text-white font-medium shadow-md"
-          : "text-green-100 hover:bg-green-600 hover:text-white"
+          ? "bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold shadow-lg transform scale-105"
+          : "text-green-100 hover:bg-green-600/50 hover:text-white hover:shadow-md"
       }`}
     >
-      <div className={`flex-shrink-0 mr-3 ${active ? "text-yellow-400" : ""}`}>
+      <div
+        className={`flex-shrink-0 mr-3 transition-transform duration-200 ${
+          active
+            ? "text-yellow-400 transform scale-110"
+            : "group-hover:text-yellow-300"
+        }`}
+      >
         {icons[icon]}
       </div>
-      <div className="flex-grow">{children}</div>
+      <div className="flex-grow font-medium">{children}</div>
       {active && (
-        <div className="w-1.5 h-8 bg-yellow-400 rounded-l-full -mr-3"></div>
+        <div className="w-1.5 h-8 bg-yellow-400 rounded-l-full -mr-3 shadow-lg"></div>
       )}
     </Link>
   );

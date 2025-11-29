@@ -10,6 +10,8 @@ import {
   Package,
   Truck,
   CheckCircle,
+  Edit,
+  CreditCard,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -22,6 +24,10 @@ function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
+  const [newStatus, setNewStatus] = useState("");
+  const [newPaymentStatus, setNewPaymentStatus] = useState("");
 
   useEffect(() => {
     fetchOrders();
@@ -153,6 +159,50 @@ function AdminOrders() {
       console.error("Error fetching order details:", error);
       toast.error(
         error.response?.data?.message || "Failed to load order details"
+      );
+    }
+  };
+
+  const handleStatusChange = async () => {
+    if (!selectedOrder || !newStatus) return;
+    try {
+      const response = await axios.put(
+        `${API_BASE}/orders/${selectedOrder._id}/status`,
+        { status: newStatus },
+        { withCredentials: true }
+      );
+      if (response.data.success) {
+        toast.success("Order status updated successfully");
+        setShowStatusModal(false);
+        setNewStatus("");
+        fetchOrders();
+        handleViewOrder(selectedOrder._id); // Refresh order details
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to update order status"
+      );
+    }
+  };
+
+  const handlePaymentStatusChange = async () => {
+    if (!selectedOrder || !newPaymentStatus) return;
+    try {
+      const response = await axios.put(
+        `${API_BASE}/orders/${selectedOrder._id}/payment-status`,
+        { paymentStatus: newPaymentStatus },
+        { withCredentials: true }
+      );
+      if (response.data.success) {
+        toast.success("Payment status updated successfully");
+        setShowPaymentStatusModal(false);
+        setNewPaymentStatus("");
+        fetchOrders();
+        handleViewOrder(selectedOrder._id); // Refresh order details
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to update payment status"
       );
     }
   };
@@ -436,13 +486,43 @@ function AdminOrders() {
               {/* Order Status */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Order Status</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm text-gray-500">Order Status</p>
+                    <button
+                      onClick={() => {
+                        setNewStatus(
+                          selectedOrder.status || selectedOrder.orderStatus
+                        );
+                        setShowStatusModal(true);
+                      }}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Change Status"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  </div>
                   {getStatusBadge(
                     selectedOrder.status || selectedOrder.orderStatus
                   )}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Payment Status</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm text-gray-500">Payment Status</p>
+                    <button
+                      onClick={() => {
+                        setNewPaymentStatus(
+                          selectedOrder.paymentInfo?.status ||
+                            selectedOrder.payment_status ||
+                            "pending"
+                        );
+                        setShowPaymentStatusModal(true);
+                      }}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Change Payment Status"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                    </button>
+                  </div>
                   {getPaymentBadge(
                     selectedOrder.paymentInfo?.status ||
                       selectedOrder.payment_status ||
@@ -524,6 +604,102 @@ function AdminOrders() {
                   </div>
                 )}
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Status Change Modal */}
+      {showStatusModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+          >
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              Change Order Status
+            </h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                New Status
+              </label>
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="received">Received</option>
+                <option value="canceled">Canceled</option>
+              </select>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setNewStatus("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStatusChange}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+              >
+                Update Status
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Payment Status Change Modal */}
+      {showPaymentStatusModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+          >
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              Change Payment Status
+            </h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                New Payment Status
+              </label>
+              <select
+                value={newPaymentStatus}
+                onChange={(e) => setNewPaymentStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="pending">Pending</option>
+                <option value="complete">Complete</option>
+                <option value="refunded">Refunded</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowPaymentStatusModal(false);
+                  setNewPaymentStatus("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePaymentStatusChange}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+              >
+                Update Payment Status
+              </button>
             </div>
           </motion.div>
         </div>

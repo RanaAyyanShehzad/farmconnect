@@ -448,30 +448,39 @@ const ProductDetail = () => {
 
               {/* Quantity Selector - Only show for non-admin users */}
               {!isAdmin && product.isAvailable && (
-                <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium text-gray-700">
+                <div className="bg-gradient-to-br from-gray-50 to-white p-4 sm:p-5 rounded-xl border-2 border-gray-200">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
                     Quantity:
                   </label>
-                  <div className="flex items-center border border-gray-300 rounded-lg">
-                    <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="px-4 py-2 hover:bg-gray-100 transition"
-                      disabled={quantity <= 1}
-                    >
-                      -
-                    </button>
-                    <span className="px-6 py-2 border-x border-gray-300 min-w-[60px] text-center">
-                      {quantity}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setQuantity(Math.min(maxQuantity, quantity + 1))
-                      }
-                      className="px-4 py-2 hover:bg-gray-100 transition"
-                      disabled={quantity >= maxQuantity}
-                    >
-                      +
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="1"
+                      max={maxQuantity}
+                      value={quantity}
+                      onChange={(e) => {
+                        const newQuantity = parseInt(e.target.value) || 1;
+                        const finalQuantity = Math.min(
+                          Math.max(1, newQuantity),
+                          maxQuantity
+                        );
+                        setQuantity(finalQuantity);
+                      }}
+                      onBlur={(e) => {
+                        const newQuantity = parseInt(e.target.value) || 1;
+                        const finalQuantity = Math.min(
+                          Math.max(1, newQuantity),
+                          maxQuantity
+                        );
+                        setQuantity(finalQuantity);
+                      }}
+                      className="w-24 px-4 py-3 border-2 border-gray-300 rounded-lg text-center font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                    {maxQuantity > 0 && (
+                      <span className="text-sm text-gray-600 font-medium">
+                        Max: {maxQuantity} {product.unit || "units"}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
