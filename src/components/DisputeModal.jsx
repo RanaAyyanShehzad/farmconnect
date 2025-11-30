@@ -94,11 +94,8 @@ function DisputeModal({ isOpen, onClose, order }) {
       };
 
       const response = await axios.post(
-        `${API_BASE}/order/dispute`,
-        {
-          orderId: order._id,
-          ...disputeData,
-        },
+        `${API_BASE}/order/dispute/${order._id}`,
+        disputeData,
         { withCredentials: true }
       );
 

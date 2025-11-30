@@ -379,8 +379,8 @@ function AdminOrders() {
                     className="hover:bg-gray-50 transition"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        #{order._id.slice(-8)}
+                      <div className="text-sm font-medium text-gray-900 font-mono">
+                        {order._id || "N/A"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -512,9 +512,38 @@ function AdminOrders() {
             className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Order Details #{selectedOrder._id.slice(-8)}
-              </h2>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-gray-800 mb-1">
+                  Order Details
+                </h2>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-mono text-gray-600">
+                    {selectedOrder._id || "N/A"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedOrder._id);
+                      toast.success("Order ID copied to clipboard!");
+                    }}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Copy Order ID"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => {
                   setShowOrderModal(false);
@@ -615,52 +644,52 @@ function AdminOrders() {
 
               {/* Order Status */}
               <div className="bg-white border-2 border-gray-200 rounded-xl p-5 shadow-sm">
-                <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">
-                  Order Status & Payment
+                <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide flex items-center justify-between">
+                  <span>Order Status & Payment</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setNewStatus(
+                          selectedOrder.status || selectedOrder.orderStatus
+                        );
+                        setShowStatusModal(true);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                      title="Change Order Status"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Update Status
+                    </button>
+                    <button
+                      onClick={() => {
+                        setNewPaymentStatus(
+                          selectedOrder.paymentInfo?.status ||
+                            selectedOrder.payment_status ||
+                            "pending"
+                        );
+                        setShowPaymentStatusModal(true);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors"
+                      title="Change Payment Status"
+                    >
+                      <CreditCard className="w-3 h-3" />
+                      Update Payment
+                    </button>
+                  </div>
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold text-gray-600 uppercase">
-                        Order Status
-                      </p>
-                      <button
-                        onClick={() => {
-                          setNewStatus(
-                            selectedOrder.status || selectedOrder.orderStatus
-                          );
-                          setShowStatusModal(true);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                        title="Change Status"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-2">
+                      Order Status
+                    </p>
                     {getStatusBadge(
                       selectedOrder.status || selectedOrder.orderStatus
                     )}
                   </div>
                   <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold text-gray-600 uppercase">
-                        Payment Status
-                      </p>
-                      <button
-                        onClick={() => {
-                          setNewPaymentStatus(
-                            selectedOrder.paymentInfo?.status ||
-                              selectedOrder.payment_status ||
-                              "pending"
-                          );
-                          setShowPaymentStatusModal(true);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                        title="Change Payment Status"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-2">
+                      Payment Status
+                    </p>
                     {getPaymentBadge(
                       selectedOrder.paymentInfo?.status ||
                         selectedOrder.payment_status ||
@@ -926,11 +955,11 @@ function AdminOrders() {
                               <div className="flex items-center gap-1">
                                 <Clock className="w-4 h-4" />
                                 <span className="font-medium">
-                                  {formatDateAndTimePKT(entry.createdAt).date}
+                                  {formatDateAndTimePKT(entry.timestamp).date}
                                 </span>
                               </div>
                               <span className="text-xs">
-                                {formatDateAndTimePKT(entry.createdAt).time} PKT
+                                {formatDateAndTimePKT(entry.timestamp).time} PKT
                               </span>
                             </div>
                           </div>

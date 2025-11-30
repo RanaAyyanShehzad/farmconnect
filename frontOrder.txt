@@ -125,44 +125,10 @@ function OrderManagement() {
         }
       );
 
-      // Handle response parsing with error handling
-      let data;
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        throw new Error(
-          response.status === 404
-            ? "Order accept endpoint not found"
-            : response.status >= 500
-            ? "Server error occurred"
-            : `Unexpected response: ${response.status}`
-        );
-      }
-
-      data = await response.json();
-
-      if (!response.ok) {
-        // Handle specific error status codes
-        if (response.status === 400) {
-          throw new Error(
-            data.message ||
-              "Invalid request. Please check the estimated delivery date."
-          );
-        } else if (response.status === 403) {
-          throw new Error(
-            data.message || "You don't have permission to accept this order"
-          );
-        } else if (response.status === 404) {
-          throw new Error(data.message || "Order not found");
-        } else {
-          throw new Error(
-            data.message || `Failed to accept order: ${response.status}`
-          );
-        }
-      }
+      const data = await response.json();
 
       if (data.success) {
-        toast.success(data.message || "Order accepted successfully!");
+        toast.success("Order accepted successfully!");
         setShowAcceptModal(false);
         setEstimatedDeliveryDate("");
         setOrderToAccept(null);
@@ -175,7 +141,7 @@ function OrderManagement() {
       }
     } catch (error) {
       console.error("Error accepting order:", error);
-      toast.error(error.message || "Failed to accept order. Please try again.");
+      toast.error("Failed to accept order. Please try again.");
     }
   };
 
@@ -199,44 +165,10 @@ function OrderManagement() {
         }
       );
 
-      // Handle response parsing with error handling
-      let data;
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        throw new Error(
-          response.status === 404
-            ? "Order reject endpoint not found"
-            : response.status >= 500
-            ? "Server error occurred"
-            : `Unexpected response: ${response.status}`
-        );
-      }
-
-      data = await response.json();
-
-      if (!response.ok) {
-        // Handle specific error status codes
-        if (response.status === 400) {
-          throw new Error(
-            data.message ||
-              "Invalid request. Please check the rejection reason."
-          );
-        } else if (response.status === 403) {
-          throw new Error(
-            data.message || "You don't have permission to reject this order"
-          );
-        } else if (response.status === 404) {
-          throw new Error(data.message || "Order not found");
-        } else {
-          throw new Error(
-            data.message || `Failed to reject order: ${response.status}`
-          );
-        }
-      }
+      const data = await response.json();
 
       if (data.success) {
-        toast.success(data.message || "Order rejected successfully");
+        toast.success("Order rejected successfully");
         setShowRejectModal(false);
         setRejectReason("");
         setOrderToReject(null);
@@ -249,7 +181,7 @@ function OrderManagement() {
       }
     } catch (error) {
       console.error("Error rejecting order:", error);
-      toast.error(error.message || "Failed to reject order. Please try again.");
+      toast.error("Failed to reject order. Please try again.");
     }
   };
 
@@ -262,34 +194,6 @@ function OrderManagement() {
         !product.sellerAccepted &&
         !product.sellerRejectedAt
     );
-  };
-
-  // Validate status transition on frontend (additional validation)
-  const validateStatusTransition = (currentStatus, newStatus) => {
-    const validTransitions = {
-      confirmed: ["processing", "cancelled"],
-      processing: ["shipped", "cancelled"],
-      shipped: ["delivered"],
-      delivered: [], // Cannot be changed by seller
-      received: [], // Final status
-      cancelled: [], // Final status
-      pending: ["confirmed", "cancelled"],
-    };
-
-    const current = (currentStatus || "").toLowerCase();
-    const next = (newStatus || "").toLowerCase();
-    const allowed = validTransitions[current] || [];
-
-    if (!allowed.includes(next)) {
-      return {
-        valid: false,
-        message: `Cannot change status from "${currentStatus}" to "${newStatus}". Allowed transitions: ${
-          allowed.join(", ") || "none"
-        }`,
-      };
-    }
-
-    return { valid: true };
   };
 
   // Handle product status change (multi-vendor system)
@@ -316,21 +220,6 @@ function OrderManagement() {
       ) {
         toast.error("Invalid product item ID");
         return;
-      }
-
-      // Get current product status for validation
-      const currentProduct = selectedOrder?.products?.find(
-        (p) => p._id === productItemId
-      );
-      const currentStatus = currentProduct?.status;
-
-      // Validate status transition on frontend
-      if (currentStatus) {
-        const validation = validateStatusTransition(currentStatus, newStatus);
-        if (!validation.valid) {
-          toast.error(validation.message);
-          return;
-        }
       }
 
       // Make API call to update product status
@@ -386,45 +275,18 @@ function OrderManagement() {
         }
       }
 
-      // Handle different error status codes with specific messages
       if (!response.ok) {
         console.error("API Error:", {
           status: response.status,
           data: responseData,
         });
-
-        // Handle specific error cases based on status code
-        if (response.status === 400) {
-          // Bad Request - Invalid status or invalid transition
-          const errorMsg = responseData.message || "Invalid status transition";
-          toast.error(errorMsg);
-          throw new Error(errorMsg);
-        } else if (response.status === 403) {
-          // Forbidden - Not authorized to update this order
-          const errorMsg =
-            responseData.message ||
-            "You don't have permission to update this order status";
-          toast.error(errorMsg);
-          throw new Error(errorMsg);
-        } else if (response.status === 404) {
-          // Not Found - Order or product not found
-          const errorMsg = responseData.message || "Order or product not found";
-          toast.error(errorMsg);
-          throw new Error(errorMsg);
-        } else {
-          // Other errors
-          const errorMsg =
-            responseData.message ||
-            `Failed to update status: ${response.status}`;
-          toast.error(errorMsg);
-          throw new Error(errorMsg);
-        }
+        throw new Error(
+          responseData.message || `Failed to update status: ${response.status}`
+        );
       }
 
       if (!responseData.success) {
-        const errorMsg = responseData.message || "Failed to update status";
-        toast.error(errorMsg);
-        throw new Error(errorMsg);
+        throw new Error(responseData.message || "Failed to update status");
       }
 
       toast.success(
@@ -1634,17 +1496,8 @@ function OrderManagement() {
                                         currentStatus || ""
                                       ).toLowerCase();
 
-                                      // Status flow according to API documentation:
-                                      // pending → confirmed → processing → shipped → delivered → received
-                                      // Status transitions validated by backend:
-                                      // - confirmed → processing, cancelled
-                                      // - processing → shipped, cancelled
-                                      // - shipped → delivered
-                                      // - delivered, received, cancelled, pending (after acceptance) - cannot be changed by seller
-                                      if (statusLower === "pending") {
-                                        // Pending orders should be accepted/rejected first, not status changed
-                                        return [];
-                                      }
+                                      // Status flow: pending → confirmed → processing → shipped → delivered → received
+                                      // Once delivered or received, cannot be changed by seller
                                       if (statusLower === "confirmed") {
                                         return ["processing", "cancelled"];
                                       }
@@ -1654,7 +1507,7 @@ function OrderManagement() {
                                       if (statusLower === "shipped") {
                                         return ["delivered"]; // Can only go to delivered
                                       }
-                                      // delivered, received, cancelled - cannot be changed by seller
+                                      // delivered, received, cancelled, pending - cannot be changed by seller
                                       return [];
                                     };
 
