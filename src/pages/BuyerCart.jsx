@@ -10,6 +10,7 @@ function BuyerCart() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [quantityInputs, setQuantityInputs] = useState({});
   const [checkoutForm, setCheckoutForm] = useState({
     fullName: "",
     phoneNumber: "",
@@ -193,6 +194,7 @@ function BuyerCart() {
 
       setCartItems(items);
       setCartId(data.cart?._id); // Store the cart ID
+      setQuantityInputs({}); // Clear any pending quantity inputs
 
       // Show warning for unavailable products
       const unavailableCount = items.filter(
@@ -201,7 +203,7 @@ function BuyerCart() {
       if (unavailableCount > 0) {
         toast.warning(
           `${unavailableCount} product(s) in your cart are no longer available. Please remove them before checkout.`,
-          { autoClose: 6000 }
+          { autoClose: 6000, toastId: "unavailable-products-warning" }
         );
       }
     } catch (err) {
@@ -283,10 +285,12 @@ function BuyerCart() {
             };
           }) || [];
         setCartItems(refreshItems);
-        setCartId(data.cart?._id);
+        setCartId(refreshData.cart?._id);
       }
     } catch (err) {
       toast.error(err || "Failed to update quantity:", err);
+      // Revert local state on error
+      fetchCartItems();
     }
   };
 
@@ -559,35 +563,59 @@ function BuyerCart() {
                                   type="number"
                                   min="1"
                                   max={item.availableQuantity || 999}
-                                  value={item.quantity}
+                                  value={
+                                    quantityInputs[item._id] !== undefined
+                                      ? quantityInputs[item._id]
+                                      : item.quantity
+                                  }
                                   onChange={(e) => {
-                                    const newQuantity =
-                                      parseInt(e.target.value) || 1;
-                                    const maxQty =
-                                      item.availableQuantity || 999;
-                                    const finalQuantity = Math.min(
-                                      Math.max(1, newQuantity),
-                                      maxQty
-                                    );
-                                    updateQuantity(
-                                      item.productId,
-                                      finalQuantity
-                                    );
+                                    const inputValue = e.target.value;
+                                    // Allow free text input - just store the raw value
+                                    // Validation will happen on blur
+                                    setQuantityInputs((prev) => ({
+                                      ...prev,
+                                      [item._id]: inputValue,
+                                    }));
                                   }}
                                   onBlur={(e) => {
+                                    const inputValue = e.target.value;
+                                    if (inputValue === "") {
+                                      // If empty, revert to original quantity
+                                      setQuantityInputs((prev) => {
+                                        const newState = { ...prev };
+                                        delete newState[item._id];
+                                        return newState;
+                                      });
+                                      return;
+                                    }
+
                                     const newQuantity =
-                                      parseInt(e.target.value) || 1;
+                                      parseInt(inputValue) || 1;
                                     const maxQty =
                                       item.availableQuantity || 999;
                                     const finalQuantity = Math.min(
                                       Math.max(1, newQuantity),
                                       maxQty
                                     );
+
+                                    // Clear local state
+                                    setQuantityInputs((prev) => {
+                                      const newState = { ...prev };
+                                      delete newState[item._id];
+                                      return newState;
+                                    });
+
+                                    // Only update if different from current quantity
                                     if (finalQuantity !== item.quantity) {
                                       updateQuantity(
                                         item.productId,
                                         finalQuantity
                                       );
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.target.blur();
                                     }
                                   }}
                                   className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"

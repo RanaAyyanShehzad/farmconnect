@@ -14,6 +14,15 @@ import {
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// Password validation helper function
+const getPasswordChecklist = (value = "") => ({
+  length: value.length >= 8,
+  lower: /[a-z]/.test(value),
+  upper: /[A-Z]/.test(value),
+  digit: /\d/.test(value),
+  special: /[@$!%*?&#\-_.+]/.test(value),
+});
+
 const FarmerProfile = () => {
   // Cloudinary configuration
   const CLOUD_NAME = "dn5edjpzg";
@@ -42,6 +51,12 @@ const FarmerProfile = () => {
     oldPassword: "",
     newPassword: "",
     confirmPassword: "",
+  });
+
+  const [showPassword, setShowPassword] = useState({
+    oldPassword: false,
+    newPassword: false,
+    confirmPassword: false,
   });
 
   // Refs
@@ -224,6 +239,11 @@ const FarmerProfile = () => {
         oldPassword: "",
         newPassword: "",
         confirmPassword: "",
+      });
+      setShowPassword({
+        oldPassword: false,
+        newPassword: false,
+        confirmPassword: false,
       });
     } catch (error) {
       toast.error(error.message);
@@ -425,25 +445,79 @@ const FarmerProfile = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Old Password
                         </label>
-                        <input
-                          type="password"
-                          name="oldPassword"
-                          value={passwordData.oldPassword}
-                          onChange={handlePasswordChange}
-                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
-                        />
+                        <div className="relative">
+                          <input
+                            type={
+                              showPassword.oldPassword ? "text" : "password"
+                            }
+                            name="oldPassword"
+                            value={passwordData.oldPassword}
+                            onChange={handlePasswordChange}
+                            className="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowPassword((prev) => ({
+                                ...prev,
+                                oldPassword: !prev.oldPassword,
+                              }))
+                            }
+                            className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700 focus:outline-none"
+                            aria-label={
+                              showPassword.oldPassword
+                                ? "Hide password"
+                                : "Show password"
+                            }
+                          >
+                            {showPassword.oldPassword ? (
+                              <EyeOffIcon />
+                            ) : (
+                              <EyeIcon />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           New Password
                         </label>
-                        <input
-                          type="password"
-                          name="newPassword"
-                          value={passwordData.newPassword}
-                          onChange={handlePasswordChange}
-                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
+                        <div className="relative">
+                          <input
+                            type={
+                              showPassword.newPassword ? "text" : "password"
+                            }
+                            name="newPassword"
+                            value={passwordData.newPassword}
+                            onChange={handlePasswordChange}
+                            className="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowPassword((prev) => ({
+                                ...prev,
+                                newPassword: !prev.newPassword,
+                              }))
+                            }
+                            className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700 focus:outline-none"
+                            aria-label={
+                              showPassword.newPassword
+                                ? "Hide password"
+                                : "Show password"
+                            }
+                          >
+                            {showPassword.newPassword ? (
+                              <EyeOffIcon />
+                            ) : (
+                              <EyeIcon />
+                            )}
+                          </button>
+                        </div>
+                        {/* Password Requirements Checklist */}
+                        <PasswordChecklist
+                          password={passwordData.newPassword}
                         />
                       </div>
 
@@ -451,13 +525,38 @@ const FarmerProfile = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Confirm Password
                         </label>
-                        <input
-                          type="password"
-                          name="confirmPassword"
-                          value={passwordData.confirmPassword}
-                          onChange={handlePasswordChange}
-                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
-                        />
+                        <div className="relative">
+                          <input
+                            type={
+                              showPassword.confirmPassword ? "text" : "password"
+                            }
+                            name="confirmPassword"
+                            value={passwordData.confirmPassword}
+                            onChange={handlePasswordChange}
+                            className="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowPassword((prev) => ({
+                                ...prev,
+                                confirmPassword: !prev.confirmPassword,
+                              }))
+                            }
+                            className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700 focus:outline-none"
+                            aria-label={
+                              showPassword.confirmPassword
+                                ? "Hide password"
+                                : "Show password"
+                            }
+                          >
+                            {showPassword.confirmPassword ? (
+                              <EyeOffIcon />
+                            ) : (
+                              <EyeIcon />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -681,5 +780,77 @@ const FarmerProfile = () => {
     </motion.div>
   );
 };
+
+// Password Requirements Checklist Component
+const PasswordChecklist = ({ password = "" }) => {
+  const checklist = getPasswordChecklist(password);
+  const items = [
+    { key: "length", label: "At least 8 characters" },
+    { key: "lower", label: "Includes a lowercase letter" },
+    { key: "upper", label: "Includes an uppercase letter" },
+    { key: "digit", label: "Includes a number" },
+    { key: "special", label: "Includes @$!%*?&#-_.+" },
+  ];
+
+  return (
+    <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <p className="text-xs font-semibold text-gray-700 mb-2">
+        Password Requirements:
+      </p>
+      <ul className="text-xs text-gray-600 space-y-1">
+        {items.map(({ key, label }) => (
+          <li
+            key={key}
+            className={`flex items-center ${
+              checklist[key] ? "text-green-600" : "text-gray-500"
+            }`}
+          >
+            <span className="mr-2 text-sm font-bold">
+              {checklist[key] ? "✓" : "○"}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+// Eye icons for password visibility toggle
+const EyeIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+    <circle cx="12" cy="12" r="2.25" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 3l18 18" />
+    <path d="M10.477 10.477a3 3 0 004.243 4.243" />
+    <path d="M6.633 6.633C4.507 7.962 3 10 3 10s3.75 6.75 9.75 6.75c1.163 0 2.257-.19 3.262-.53" />
+    <path d="M17.253 14.63C19.405 13.252 21 10.999 21 10.999s-3.75-6.75-9.75-6.75a9.054 9.054 0 00-2.835.452" />
+    <path d="M14.362 5.182c-2.423-1.14-4.99-1.182-7.362 0" />
+    <path d="M12 8.25a3.75 3.75 0 013.75 3.75" />
+  </svg>
+);
 
 export default FarmerProfile;

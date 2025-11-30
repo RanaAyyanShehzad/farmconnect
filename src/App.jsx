@@ -77,6 +77,8 @@ export default function App() {
                 rtl={false}
                 pauseOnFocusLoss
                 draggable
+                preventDuplicate
+                enableMultiContainer={false}
                 pauseOnHover
               />
               <ConditionalChatBot />

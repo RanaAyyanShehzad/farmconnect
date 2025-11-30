@@ -36,11 +36,7 @@ function NotificationBell() {
         console.error("Error marking notification as read:", error);
       }
     }
-
-    if (notification.actionUrl) {
-      navigate(notification.actionUrl);
-      setIsOpen(false);
-    }
+    // Removed navigation - notifications are now informational only
   };
 
   const handleDelete = async (e, notificationId) => {
@@ -197,9 +193,6 @@ function NotificationBell() {
                               ).toLocaleDateString()}
                             </span>
                             <div className="flex items-center gap-1">
-                              {notification.actionUrl && (
-                                <ExternalLink className="w-3 h-3 text-gray-400" />
-                              )}
                               <button
                                 onClick={(e) =>
                                   handleDelete(e, notification._id)
