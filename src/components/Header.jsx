@@ -1,14 +1,12 @@
-import { useState, useEffect } from "react";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 import LanguageToggle from "./LanguageToggle";
 import { useTranslation } from "../hooks/useTranslation";
+import NotificationBell from "./NotificationBell";
 
 function Header({ sidebarOpen, setSidebarOpen }) {
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-
   // Get the name from Redux store
   const { name, img } = useSelector((state) => state.user);
   const weather = useWeatherDisplay();
@@ -16,31 +14,15 @@ function Header({ sidebarOpen, setSidebarOpen }) {
     weather.status === "loading" ? "..." : weather.temperature;
   const { t } = useTranslation();
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setNotificationsOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const stopPropagation = (e) => {
-    e.stopPropagation();
-  };
-
   return (
-    <header className="bg-green-700 shadow-md sticky top-0 z-30 ">
-      <div className="px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex items-center justify-between">
+    <header className="bg-gradient-to-r from-green-700 via-green-600 to-green-700 shadow-xl sticky top-0 z-30 border-b-2 border-yellow-400 h-14">
+      <div className="px-4 sm:px-6 lg:px-8 h-full flex items-center">
+        <div className="flex items-center justify-between w-full">
           {/* Hamburger menu */}
           <div className="flex lg:hidden">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-white hover:text-yellow-400 focus:outline-none"
+              className="text-white hover:text-yellow-400 focus:outline-none transition-all duration-200 p-2 rounded-lg hover:bg-green-600/50 hover:scale-110"
               aria-label="Open sidebar"
             >
               <svg
@@ -61,27 +43,31 @@ function Header({ sidebarOpen, setSidebarOpen }) {
 
           {/* Logo (mobile) */}
           <div className="lg:hidden flex items-center space-x-2">
-            <svg
-              className="w-7 h-7 text-yellow-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
-            <span className="text-white font-semibold text-lg">
+            <div className="bg-yellow-400 p-1.5 rounded-lg shadow-lg transform hover:scale-110 transition-transform">
+              <svg
+                className="w-5 h-5 text-green-800"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                />
+              </svg>
+            </div>
+            <span className="text-white font-bold text-lg tracking-wide drop-shadow-md">
               {t("app.brand")}
             </span>
           </div>
 
           {/* Right section */}
           <div className="flex items-center space-x-3 ml-auto">
-            <LanguageToggle />
+            <div className="hidden md:flex items-center space-x-2">
+              <LanguageToggle />
+            </div>
             {/* Weather */}
             <span className="hidden md:flex items-center text-white">
               <svg
@@ -102,72 +88,24 @@ function Header({ sidebarOpen, setSidebarOpen }) {
 
             {/* Notifications */}
             <div className="relative">
-              <button
-                className="text-white hover:text-yellow-400 relative"
-                onClick={(e) => {
-                  e.preventDefault();
-                  stopPropagation(e);
-                  setNotificationsOpen(!notificationsOpen);
-                }}
-                aria-label="Notifications"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                  />
-                </svg>
-                <span className="absolute top-0 right-0 h-4 w-4 bg-yellow-400 text-xs text-green-800 font-bold rounded-full flex items-center justify-center">
-                  3
-                </span>
-              </button>
-
-              {/* {notificationsOpen && (
-                <div
-                  className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50"
-                  onClick={stopPropagation}
-                >
-                  <a
-                    href="#"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    New order received
-                  </a>
-                  <a
-                    href="#"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    Weather alert
-                  </a>
-                  <a
-                    href="#"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    Market price update
-                  </a>
-                </div>
-              )} */}
+              <NotificationBell />
             </div>
 
-            {/* User Avatar + Name (No dropdown) */}
-            <div className="flex items-center space-x-2 text-white">
-              <div className="w-8 h-8 bg-green-800 rounded-full flex items-center justify-center">
+            {/* User Avatar + Name */}
+            <Link
+              to="/farmer/farmerprofile"
+              className="flex items-center space-x-2 text-white hover:text-yellow-400 transition-all duration-200 p-2 rounded-lg hover:bg-green-600/50 group"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-green-800 to-green-900 rounded-full flex items-center justify-center border-2 border-yellow-400 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all">
                 {img ? (
                   <img
                     src={img}
                     alt="Profile"
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-full h-full rounded-full object-cover"
                   />
                 ) : (
                   <svg
-                    className="w-5 h-5"
+                    className="w-5 h-5 text-white"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -181,12 +119,10 @@ function Header({ sidebarOpen, setSidebarOpen }) {
                   </svg>
                 )}
               </div>
-              <Link to="/farmer/farmerprofile">
-                <span className="hidden md:inline">
-                  {name || t("roles.farmer")}
-                </span>
-              </Link>
-            </div>
+              <span className="hidden md:inline font-semibold text-sm">
+                {name || t("roles.farmer")}
+              </span>
+            </Link>
           </div>
         </div>
       </div>

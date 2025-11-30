@@ -6,6 +6,25 @@ import { setUser } from "../features/userSlice";
 import { useTranslation } from "../hooks/useTranslation";
 import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "../context/NotificationContext";
+import DisputeResponseModal from "../components/DisputeResponseModal";
+import { AlertCircle, Bell, Gavel, RefreshCw } from "lucide-react";
+import { toast } from "react-toastify";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 const getOrderStatus = (order) =>
   (order?.orderStatus || order?.status || "").toLowerCase();
@@ -18,7 +37,13 @@ function Dashboard() {
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [revenueData, setRevenueData] = useState([]);
+  const [orderStatusData, setOrderStatusData] = useState([]);
+  const [disputes, setDisputes] = useState([]);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [selectedDispute, setSelectedDispute] = useState(null);
   const { t } = useTranslation();
+  const { notifications, unreadCount, fetchNotifications } = useNotifications();
   const {
     data: weatherData,
     city,
@@ -56,6 +81,33 @@ function Dashboard() {
       transition: { duration: 0.3, ease: "easeOut" },
     },
   };
+  useEffect(() => {
+    fetchDisputes();
+  }, []);
+
+  const fetchDisputes = async () => {
+    try {
+      // Use seller disputes endpoint: GET /api/v1/order/disputes
+      const response = await axios.get(
+        "https://agrofarm-vd8i.onrender.com/api/v1/order/disputes",
+        { withCredentials: true }
+      );
+
+      if (response.data.success && response.data.disputes) {
+        // Filter to show only open/pending disputes on dashboard
+        const activeDisputes = response.data.disputes.filter(
+          (d) => d.status !== "closed"
+        );
+        setDisputes(activeDisputes);
+      } else {
+        setDisputes([]);
+      }
+    } catch (error) {
+      console.error("Error fetching disputes:", error);
+      setDisputes([]);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -102,6 +154,44 @@ function Dashboard() {
           0
         );
         setRevenue(monthlyRevenue);
+
+        // Prepare revenue chart data (last 6 months)
+        const revenueChartData = [];
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthOrders = orders.filter((order) => {
+            const orderDate = new Date(order.createdAt);
+            return (
+              orderDate.getMonth() === date.getMonth() &&
+              orderDate.getFullYear() === date.getFullYear() &&
+              getOrderStatus(order) === "delivered"
+            );
+          });
+          const monthRevenue = monthOrders.reduce(
+            (sum, order) => sum + (order.totalPrice || 0),
+            0
+          );
+          revenueChartData.push({
+            month: date.toLocaleDateString("en-US", { month: "short" }),
+            revenue: monthRevenue,
+          });
+        }
+        setRevenueData(revenueChartData);
+
+        // Prepare order status chart data
+        const statusCounts = {};
+        orders.forEach((order) => {
+          const status = getOrderStatus(order);
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        });
+        const statusData = Object.entries(statusCounts).map(
+          ([name, value]) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            value,
+          })
+        );
+        setOrderStatusData(statusData);
 
         // Set recent orders (latest 3)
         const sortedOrders = [...orders].sort(
@@ -165,8 +255,17 @@ function Dashboard() {
 
   if (error) {
     return (
-      <div className="p-4 text-red-500">
-        {t("weather.errorTitle")}: {error}
+      <div className="p-4">
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded">
+          <p className="font-semibold">{t("weather.errorTitle") || "Error"}</p>
+          <p>{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -279,6 +378,93 @@ function Dashboard() {
         />
       </div>
 
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Revenue Chart */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Revenue Trend (Last 6 Months)
+          </h2>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => [
+                    `₨ ${value.toLocaleString()}`,
+                    "Revenue",
+                  ]}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ fill: "#10b981", r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Order Status Chart */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Orders by Status
+          </h2>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            </div>
+          ) : orderStatusData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={orderStatusData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {orderStatusData.map((entry, index) => {
+                    const colors = [
+                      "#10b981",
+                      "#3b82f6",
+                      "#f59e0b",
+                      "#ef4444",
+                      "#8b5cf6",
+                    ];
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={colors[index % colors.length]}
+                      />
+                    );
+                  })}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No order data available
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Main Content Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Orders */}
@@ -287,13 +473,27 @@ function Dashboard() {
             <h2 className="text-lg font-semibold text-gray-800">
               {t("dashboard.recentOrders")}
             </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/farmer/orders")}
-              className="text-green-600 hover:text-green-800 text-sm font-semibold"
-            >
-              {t("common.viewAll")}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoading(true);
+                  await fetchData();
+                  toast.success("Orders refreshed");
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Orders"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/farmer/orders")}
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                {t("common.viewAll")}
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -489,6 +689,160 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Disputes & Notifications Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Disputes Section */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-orange-600" />
+              Active Disputes
+            </h2>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  await fetchDisputes();
+                  toast.success("Disputes refreshed");
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Disputes"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate("/farmer/disputes")}
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                View All
+              </button>
+            </div>
+          </div>
+          {disputes.length > 0 ? (
+            <div className="space-y-3">
+              {disputes.slice(0, 3).map((dispute, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 bg-orange-50 border border-orange-200 rounded-lg"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        Order #
+                        {typeof dispute.orderId === "object" &&
+                        dispute.orderId?._id
+                          ? dispute.orderId._id.slice(-8)
+                          : typeof dispute.orderId === "string"
+                          ? dispute.orderId.slice(-8)
+                          : "N/A"}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Status: {dispute.status}
+                      </p>
+                    </div>
+                    {dispute.status === "open" && (
+                      <button
+                        onClick={() => {
+                          // Navigate to disputes page to handle dispute
+                          navigate("/farmer/disputes");
+                        }}
+                        className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition"
+                      >
+                        View & Respond
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No active disputes
+            </p>
+          )}
+        </div>
+
+        {/* Notifications Section */}
+        <div className="bg-white rounded-lg shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-600" />
+              Notifications
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </h2>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  await fetchNotifications();
+                  toast.success("Notifications refreshed");
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Notifications"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate("/notifications")}
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                View All
+              </button>
+            </div>
+          </div>
+          {notifications.length > 0 ? (
+            <div className="space-y-3">
+              {notifications.slice(0, 5).map((notification) => (
+                <motion.div
+                  key={notification._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`p-3 rounded-lg border ${
+                    notification.isRead
+                      ? "bg-gray-50 border-gray-200"
+                      : "bg-blue-50 border-blue-200"
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900">
+                    {notification.title}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                    {notification.message}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(notification.createdAt).toLocaleDateString()}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              No notifications
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Dispute Response Modal */}
+      {showDisputeModal && selectedDispute && (
+        <DisputeResponseModal
+          isOpen={showDisputeModal}
+          onClose={() => {
+            setShowDisputeModal(false);
+            setSelectedDispute(null);
+          }}
+          dispute={selectedDispute}
+          onSuccess={() => {
+            fetchDisputes();
+            window.location.reload(); // Refresh dashboard data
+          }}
+        />
+      )}
     </div>
   );
 }
