@@ -10,6 +10,7 @@ import {
   XCircle,
   Plus,
   Eye,
+  RefreshCw,
 } from "lucide-react";
 import DisputeModal from "../components/DisputeModal";
 import DisputeResolveModal from "../components/DisputeResolveModal";
@@ -26,6 +27,7 @@ function BuyerDisputes() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreateForm, setShowCreateForm] = useState(false);
 
@@ -36,63 +38,45 @@ function BuyerDisputes() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Fetch buyer's orders
+
+      // Fetch buyer's disputes using buyer disputes endpoint: GET /api/v1/order/disputes/buyer
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter);
+      }
+      params.append("page", "1");
+      params.append("limit", "50");
+
+      const disputesResponse = await axios.get(
+        `${API_BASE}/disputes/buyer${
+          params.toString() ? `?${params.toString()}` : ""
+        }`,
+        { withCredentials: true }
+      );
+
+      if (disputesResponse.data.success && disputesResponse.data.disputes) {
+        // Apply status filter if needed (API might already filter)
+        let filteredDisputes = disputesResponse.data.disputes;
+        if (statusFilter !== "all") {
+          filteredDisputes = disputesResponse.data.disputes.filter(
+            (d) => d.status === statusFilter
+          );
+        }
+        setDisputes(filteredDisputes);
+      } else {
+        setDisputes([]);
+      }
+
+      // Also fetch orders for creating new disputes
       const ordersResponse = await axios.get(`${API_BASE}/user-orders`, {
         withCredentials: true,
       });
       const allOrders = ordersResponse.data.orders || [];
       setOrders(allOrders);
-
-      // Extract disputes from orders
-      const orderDisputes = [];
-      for (const order of allOrders) {
-        if (
-          order.dispute_status &&
-          order.dispute_status !== "none" &&
-          order.dispute_status !== "closed"
-        ) {
-          // Try to fetch full dispute details
-          let fullDispute = null;
-          try {
-            const disputeResponse = await axios.get(
-              `https://agrofarm-vd8i.onrender.com/api/v1/admin/disputes?orderId=${order._id}`,
-              { withCredentials: true }
-            );
-            if (
-              disputeResponse.data.success &&
-              disputeResponse.data.disputes.length > 0
-            ) {
-              fullDispute = disputeResponse.data.disputes[0];
-            }
-          } catch (err) {
-            console.error("Error fetching dispute details:", err);
-          }
-
-          const dispute = fullDispute || {
-            _id: order.dispute_id || order._id + "_dispute",
-            orderId: order._id,
-            status: order.dispute_status,
-            order: order,
-            buyerId: order.customerId || order.buyerId,
-            sellerId:
-              order.products?.[0]?.farmerId || order.products?.[0]?.supplierId,
-            sellerRole: order.products?.[0]?.farmerId ? "farmer" : "supplier",
-            disputeType: order.dispute_type || "other",
-            reason: order.dispute_reason || "Dispute on order",
-            buyerProof: order.proofOfFault || null,
-            sellerResponse: order.dispute_response || null,
-          };
-
-          // Apply status filter
-          if (statusFilter === "all" || dispute.status === statusFilter) {
-            orderDisputes.push(dispute);
-          }
-        }
-      }
-      setDisputes(orderDisputes);
     } catch (error) {
       console.error("Error fetching disputes:", error);
-      toast.error("Failed to fetch disputes");
+      toast.error(error.response?.data?.message || "Failed to fetch disputes");
+      setDisputes([]);
     } finally {
       setLoading(false);
     }
@@ -168,31 +152,37 @@ function BuyerDisputes() {
             Manage disputes on your orders and create new disputes if needed
           </p>
         </div>
-        {getOrdersForDispute().length > 0 && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition shadow-md"
-          >
-            <Plus className="w-5 h-5" />
-            Create Dispute
-          </button>
-        )}
       </div>
 
       {/* Filter */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="flex items-center gap-4">
-          <label className="text-gray-700 font-medium">Filter by Status:</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <label className="text-gray-700 font-medium">
+              Filter by Status:
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value="all">All Disputes</option>
+              <option value="open">Open</option>
+              <option value="pending_admin_review">Pending Admin Review</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <button
+            onClick={async () => {
+              await fetchData();
+              toast.success("Disputes refreshed");
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md"
+            title="Refresh Disputes"
           >
-            <option value="all">All Disputes</option>
-            <option value="open">Open</option>
-            <option value="pending_admin_review">Pending Admin Review</option>
-            <option value="closed">Closed</option>
-          </select>
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -230,29 +220,57 @@ function BuyerDisputes() {
                     <div className="p-2 bg-orange-100 rounded-lg">
                       <Gavel className="w-5 h-5 text-orange-600" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-lg font-semibold text-gray-900">
                         Dispute #{dispute._id?.slice(-8) || "N/A"}
                       </h3>
-                      <p className="text-sm text-gray-500">
-                        Order:{" "}
-                        {typeof dispute.orderId === "string"
-                          ? dispute.orderId.slice(-8)
-                          : dispute.orderId?._id?.slice(-8) || "N/A"}
-                      </p>
+                      <div className="flex items-center gap-4 mt-1">
+                        <p className="text-sm font-medium text-gray-700">
+                          Order ID:{" "}
+                          <span className="text-orange-600 font-semibold">
+                            {typeof dispute.orderId === "string"
+                              ? dispute.orderId.slice(-8)
+                              : dispute.orderId?._id?.slice(-8) || "N/A"}
+                          </span>
+                        </p>
+                        {dispute.orderId?.totalPrice && (
+                          <p className="text-sm text-gray-600">
+                            Total: ₨{" "}
+                            {dispute.orderId.totalPrice.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">Type</p>
+                      <p className="text-xs text-gray-500 mb-1">Dispute Type</p>
                       <p className="text-sm font-medium text-gray-900">
                         {getDisputeTypeLabel(dispute.disputeType)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">Status</p>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Dispute Status
+                      </p>
                       {getStatusBadge(dispute.status)}
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Order Status</p>
+                      <p className="text-sm font-medium text-gray-900 capitalize">
+                        {dispute.orderId?.orderStatus ||
+                          dispute.orderId?.status ||
+                          "N/A"}
+                      </p>
+                      {dispute.orderId?.payment_status && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Payment:{" "}
+                          <span className="font-medium capitalize">
+                            {dispute.orderId.payment_status}
+                          </span>
+                        </p>
+                      )}
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Seller</p>
@@ -264,28 +282,92 @@ function BuyerDisputes() {
 
                   {dispute.reason && (
                     <div className="mb-4">
-                      <p className="text-xs text-gray-500 mb-1">Reason</p>
+                      <p className="text-xs text-gray-500 mb-1 font-medium">
+                        Dispute Reason
+                      </p>
                       <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
                         {dispute.reason}
                       </p>
                     </div>
                   )}
 
-                  {dispute.sellerResponse && (
+                  {/* Seller Response */}
+                  {dispute.sellerResponse?.proposal &&
+                  dispute.sellerResponse?.respondedAt ? (
                     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs text-blue-600 font-medium mb-1">
+                      <p className="text-xs text-blue-600 font-medium mb-2">
                         Seller's Response
                       </p>
-                      {dispute.sellerResponse.proposal && (
-                        <p className="text-sm text-gray-700">
-                          {dispute.sellerResponse.proposal}
+                      {dispute.sellerResponse.evidence &&
+                      dispute.sellerResponse.evidence.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          {dispute.sellerResponse.evidence
+                            .slice(0, 3)
+                            .map((evidence, index) => (
+                              <img
+                                key={index}
+                                src={evidence}
+                                alt={`Evidence ${index + 1}`}
+                                className="w-full h-20 object-cover rounded-lg border border-blue-200 cursor-pointer hover:opacity-80"
+                                onError={(e) => {
+                                  e.target.style.display = "none";
+                                }}
+                                onClick={() => window.open(evidence, "_blank")}
+                              />
+                            ))}
+                          {dispute.sellerResponse.evidence.length > 3 && (
+                            <div className="w-full h-20 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center text-xs text-blue-600">
+                              +{dispute.sellerResponse.evidence.length - 3} more
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                      <p className="text-sm text-gray-700 font-medium mb-1">
+                        Proposal:
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {dispute.sellerResponse.proposal}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Responded:{" "}
+                        {new Date(
+                          dispute.sellerResponse.respondedAt
+                        ).toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Seller's Response
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Seller has not responded yet.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Admin Ruling */}
+                  {dispute.adminRuling?.decision && (
+                    <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                      <p className="text-xs text-purple-600 font-medium mb-2">
+                        Admin Ruling
+                      </p>
+                      <p className="text-sm font-semibold text-gray-900 mb-1">
+                        Decision:{" "}
+                        <span className="capitalize">
+                          {dispute.adminRuling.decision.replace("_", " ")}
+                        </span>
+                      </p>
+                      {dispute.adminRuling.notes && (
+                        <p className="text-sm text-gray-700 mt-1">
+                          {dispute.adminRuling.notes}
                         </p>
                       )}
-                      {dispute.sellerResponse.respondedAt && (
+                      {dispute.adminRuling.ruledAt && (
                         <p className="text-xs text-gray-500 mt-2">
-                          Responded:{" "}
+                          Ruled:{" "}
                           {new Date(
-                            dispute.sellerResponse.respondedAt
+                            dispute.adminRuling.ruledAt
                           ).toLocaleString()}
                         </p>
                       )}
@@ -302,23 +384,49 @@ function BuyerDisputes() {
                 </div>
 
                 <div className="ml-4 flex flex-col gap-2">
-                  {dispute.status === "open" && dispute.sellerResponse && (
-                    <button
-                      onClick={() => {
-                        setSelectedDispute(dispute);
-                        setShowResolveModal(true);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 whitespace-nowrap"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Resolve
-                    </button>
-                  )}
-                  {dispute.status === "open" && !dispute.sellerResponse && (
-                    <span className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
-                      Awaiting Seller Response
-                    </span>
-                  )}
+                  <button
+                    onClick={async () => {
+                      setSelectedDispute(dispute);
+                      // Fetch full dispute details if needed
+                      try {
+                        const response = await axios.get(
+                          `${API_BASE}/dispute/buyer/${dispute._id}`,
+                          { withCredentials: true }
+                        );
+                        if (response.data.success && response.data.dispute) {
+                          setSelectedDispute(response.data.dispute);
+                        }
+                      } catch (error) {
+                        console.error("Error fetching dispute details:", error);
+                      }
+                      setShowDetailsModal(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View Details
+                  </button>
+                  {dispute.status === "open" &&
+                    dispute.sellerResponse?.proposal &&
+                    dispute.sellerResponse?.respondedAt && (
+                      <button
+                        onClick={() => {
+                          setSelectedDispute(dispute);
+                          setShowResolveModal(true);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 whitespace-nowrap"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Resolve
+                      </button>
+                    )}
+                  {dispute.status === "open" &&
+                    (!dispute.sellerResponse?.proposal ||
+                      !dispute.sellerResponse?.respondedAt) && (
+                      <span className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
+                        Awaiting Seller Response
+                      </span>
+                    )}
                   {dispute.status === "pending_admin_review" && (
                     <span className="px-4 py-2 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
                       Awaiting Admin Review
@@ -407,6 +515,231 @@ function BuyerDisputes() {
             toast.success("Dispute created successfully");
           }}
         />
+      )}
+
+      {/* Dispute Details Modal */}
+      {showDetailsModal && selectedDispute && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Dispute Details #{selectedDispute._id?.slice(-8) || "N/A"}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setSelectedDispute(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Dispute Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Dispute Type</p>
+                  <p className="text-base font-medium text-gray-900 capitalize">
+                    {selectedDispute.disputeType?.replace("_", " ") || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Status</p>
+                  {(() => {
+                    const status = selectedDispute.status;
+                    if (status === "open")
+                      return (
+                        <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
+                          Open
+                        </span>
+                      );
+                    if (status === "pending_admin_review")
+                      return (
+                        <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
+                          Pending Admin Review
+                        </span>
+                      );
+                    if (status === "closed")
+                      return (
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-sm font-medium">
+                          Closed
+                        </span>
+                      );
+                    return (
+                      <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium">
+                        {status}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Order ID</p>
+                  <p className="text-base font-medium text-gray-900">
+                    {typeof selectedDispute.orderId === "string"
+                      ? selectedDispute.orderId.slice(-8)
+                      : selectedDispute.orderId?._id?.slice(-8) || "N/A"}
+                  </p>
+                  {selectedDispute.orderId?.totalPrice && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Total: ₨{" "}
+                      {selectedDispute.orderId.totalPrice.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Seller</p>
+                  <p className="text-base font-medium text-gray-900 capitalize">
+                    {selectedDispute.sellerRole || "Unknown"}
+                  </p>
+                  {typeof selectedDispute.sellerId === "object" &&
+                    selectedDispute.sellerId?.name && (
+                      <>
+                        <p className="text-sm text-gray-600">
+                          {selectedDispute.sellerId.name}
+                        </p>
+                        {selectedDispute.sellerId.email && (
+                          <p className="text-xs text-gray-400">
+                            {selectedDispute.sellerId.email}
+                          </p>
+                        )}
+                      </>
+                    )}
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Dispute Reason</p>
+                <p className="text-base text-gray-900 bg-gray-50 p-4 rounded-lg">
+                  {selectedDispute.reason || "N/A"}
+                </p>
+              </div>
+
+              {/* Buyer Proof */}
+              {selectedDispute.buyerProof && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">Your Proof</p>
+                  {selectedDispute.buyerProof.images &&
+                  selectedDispute.buyerProof.images.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-4 mb-3">
+                      {selectedDispute.buyerProof.images.map((image, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={image}
+                            alt={`Proof ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                            }}
+                            onClick={() => window.open(image, "_blank")}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                      No images provided
+                    </p>
+                  )}
+                  {selectedDispute.buyerProof.description && (
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg mt-2">
+                      {selectedDispute.buyerProof.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Seller Response */}
+              {selectedDispute.sellerResponse?.proposal &&
+              selectedDispute.sellerResponse?.respondedAt ? (
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">Seller Response</p>
+                  {selectedDispute.sellerResponse.evidence &&
+                  selectedDispute.sellerResponse.evidence.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-4 mb-3">
+                      {selectedDispute.sellerResponse.evidence.map(
+                        (evidence, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={evidence}
+                              alt={`Evidence ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80"
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                              }}
+                              onClick={() => window.open(evidence, "_blank")}
+                            />
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : null}
+                  <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded-lg">
+                    <span className="font-medium">Proposal: </span>
+                    {selectedDispute.sellerResponse.proposal}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Responded:{" "}
+                    {new Date(
+                      selectedDispute.sellerResponse.respondedAt
+                    ).toLocaleString()}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">Seller Response</p>
+                  <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    Seller has not responded yet.
+                  </p>
+                </div>
+              )}
+
+              {/* Order Products */}
+              {selectedDispute.orderId?.products &&
+                selectedDispute.orderId.products.length > 0 && (
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">Order Products</p>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      {selectedDispute.orderId.products.map((product, idx) => (
+                        <div
+                          key={idx}
+                          className="mb-3 pb-3 border-b border-gray-200 last:border-0"
+                        >
+                          <p className="text-sm font-medium text-gray-900">
+                            {product.productId?.name || "Product"}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            Quantity: {product.quantity} × ₨{" "}
+                            {product.price?.toLocaleString() || "0"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Timestamps */}
+              <div className="flex items-center gap-4 text-xs text-gray-500 pt-4 border-t border-gray-200">
+                <div>
+                  <span className="font-medium">Created: </span>
+                  {new Date(selectedDispute.createdAt).toLocaleString()}
+                </div>
+                {selectedDispute.updatedAt && (
+                  <div>
+                    <span className="font-medium">Updated: </span>
+                    {new Date(selectedDispute.updatedAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {/* Dispute Resolve Modal */}

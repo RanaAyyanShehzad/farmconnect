@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../context/NotificationContext";
 import DisputeResponseModal from "../components/DisputeResponseModal";
-import { Bell, Gavel } from "lucide-react";
+import { Bell, Gavel, RefreshCw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -32,7 +32,7 @@ function SupplierDashboard() {
   const [disputes, setDisputes] = useState([]);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [selectedDispute, setSelectedDispute] = useState(null);
-  const { notifications, unreadCount } = useNotifications();
+  const { notifications, unreadCount, fetchNotifications } = useNotifications();
   const [revenueData, setRevenueData] = useState([]);
 
   useEffect(() => {
@@ -141,41 +141,24 @@ function SupplierDashboard() {
 
   const fetchDisputes = async () => {
     try {
-      const ordersResponse = await axios.get(
-        "https://agrofarm-vd8i.onrender.com/api/v1/order/supplier-orders",
+      // Use seller disputes endpoint: GET /api/v1/order/disputes
+      const response = await axios.get(
+        "https://agrofarm-vd8i.onrender.com/api/v1/order/disputes",
         { withCredentials: true }
       );
-      const orders = ordersResponse.data.orders || [];
 
-      const orderDisputes = [];
-      for (const order of orders) {
-        if (
-          order.dispute_status &&
-          order.dispute_status !== "none" &&
-          order.dispute_status !== "closed"
-        ) {
-          orderDisputes.push({
-            _id: order.dispute_id || order._id + "_dispute",
-            orderId: order._id,
-            status: order.dispute_status,
-            order: order,
-            buyerId:
-              order.customerId ||
-              (order.buyerId && typeof order.buyerId === "object"
-                ? order.buyerId
-                : null),
-            sellerId: { _id: "current_user" },
-            sellerRole: "supplier",
-            disputeType: order.dispute_type || "other",
-            reason: order.dispute_reason || "Dispute on order",
-            buyerProof: order.proofOfFault || null,
-            sellerResponse: order.dispute_response || null,
-          });
-        }
+      if (response.data.success && response.data.disputes) {
+        // Filter to show only open/pending disputes on dashboard
+        const activeDisputes = response.data.disputes.filter(
+          (d) => d.status !== "closed"
+        );
+        setDisputes(activeDisputes);
+      } else {
+        setDisputes([]);
       }
-      setDisputes(orderDisputes);
     } catch (error) {
       console.error("Error fetching disputes:", error);
+      setDisputes([]);
     }
   };
 
@@ -348,13 +331,39 @@ function SupplierDashboard() {
             <h2 className="text-lg font-semibold text-gray-800">
               Recent Orders
             </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/supplier/orders")}
-              className="text-green-600 hover:text-green-800 text-sm font-semibold"
-            >
-              View All
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoading(true);
+                  const fetchData = async () => {
+                    try {
+                      const ordersResponse = await axios.get(
+                        "https://agrofarm-vd8i.onrender.com/api/v1/order/supplier-orders",
+                        { withCredentials: true }
+                      );
+                      const orders = ordersResponse.data.orders || [];
+                      setRecentOrders(orders.slice(0, 3));
+                      setLoading(false);
+                    } catch (err) {
+                      setLoading(false);
+                    }
+                  };
+                  await fetchData();
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Orders"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/supplier/orders")}
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                View All
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -453,12 +462,23 @@ function SupplierDashboard() {
               <Gavel className="w-5 h-5 text-orange-600" />
               Active Disputes
             </h2>
-            <button
-              onClick={() => navigate("/supplier/disputes")}
-              className="text-green-600 hover:text-green-800 text-sm font-semibold"
-            >
-              View All
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  await fetchDisputes();
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Disputes"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate("/supplier/disputes")}
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                View All
+              </button>
+            </div>
           </div>
           {disputes.length > 0 ? (
             <div className="space-y-3">
@@ -470,7 +490,13 @@ function SupplierDashboard() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        Order #{dispute.orderId?.slice(-8) || "N/A"}
+                        Order #
+                        {typeof dispute.orderId === "object" &&
+                        dispute.orderId?._id
+                          ? dispute.orderId._id.slice(-8)
+                          : typeof dispute.orderId === "string"
+                          ? dispute.orderId.slice(-8)
+                          : "N/A"}
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
                         Status: {dispute.status}
@@ -510,12 +536,23 @@ function SupplierDashboard() {
                 </span>
               )}
             </h2>
-            <button
-              onClick={() => navigate("/notifications")}
-              className="text-green-600 hover:text-green-800 text-sm font-semibold"
-            >
-              View All
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  await fetchNotifications();
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Notifications"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate("/notifications")}
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                View All
+              </button>
+            </div>
           </div>
           {notifications.length > 0 ? (
             <div className="space-y-3">

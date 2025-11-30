@@ -26,6 +26,7 @@ function AdminDisputeManagement() {
   const [ruling, setRuling] = useState({ decision: "", notes: "" });
   const [fullDisputeDetails, setFullDisputeDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [submittingRuling, setSubmittingRuling] = useState(false);
 
   useEffect(() => {
     fetchDisputes();
@@ -99,7 +100,9 @@ function AdminDisputeManagement() {
 
   const handleAdminRuling = async (e) => {
     e.preventDefault();
-    if (!selectedDispute) return;
+    if (!selectedDispute || submittingRuling) return;
+
+    setSubmittingRuling(true);
     try {
       // Admin ruling endpoint: /api/v1/order/dispute/:disputeId/admin-ruling
       const response = await axios.put(
@@ -114,6 +117,8 @@ function AdminDisputeManagement() {
       fetchDisputes();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to resolve dispute");
+    } finally {
+      setSubmittingRuling(false);
     }
   };
 
@@ -377,26 +382,6 @@ function AdminDisputeManagement() {
                     >
                       <Gavel className="w-4 h-4" />
                       Make Ruling
-                    </button>
-                  )}
-                  {(dispute.status === "open" ||
-                    dispute.status === "pending_admin_review") && (
-                    <button
-                      onClick={async () => {
-                        setSelectedDispute(dispute);
-                        // Fetch full details
-                        const fullDetails = await fetchDisputeDetails(
-                          dispute._id
-                        );
-                        if (fullDetails) {
-                          setSelectedDispute(fullDetails);
-                        }
-                        setShowRulingModal(true);
-                      }}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
-                    >
-                      <Gavel className="w-4 h-4" />
-                      Admin Action
                     </button>
                   )}
                 </div>
@@ -762,8 +747,7 @@ function AdminDisputeManagement() {
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                {(selectedDispute.status === "pending_admin_review" ||
-                  selectedDispute.status === "open") && (
+                {selectedDispute.status === "pending_admin_review" && (
                   <button
                     onClick={() => {
                       setShowDetailsModal(false);
@@ -772,9 +756,7 @@ function AdminDisputeManagement() {
                     className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
                   >
                     <Gavel className="w-4 h-4" />
-                    {selectedDispute.status === "pending_admin_review"
-                      ? "Make Admin Ruling"
-                      : "Admin Action / Make Ruling"}
+                    Make Admin Ruling
                   </button>
                 )}
                 <button
@@ -820,7 +802,8 @@ function AdminDisputeManagement() {
                   onChange={(e) =>
                     setRuling({ ...ruling, decision: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  disabled={submittingRuling}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">Select decision</option>
                   <option value="buyer_win">Buyer Wins (Refund)</option>
@@ -839,7 +822,8 @@ function AdminDisputeManagement() {
                     setRuling({ ...ruling, notes: e.target.value })
                   }
                   rows="5"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  disabled={submittingRuling}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter detailed explanation of your ruling decision..."
                 />
               </div>
@@ -847,20 +831,30 @@ function AdminDisputeManagement() {
                 <button
                   type="button"
                   onClick={() => {
-                    setShowRulingModal(false);
-                    setSelectedDispute(null);
-                    setRuling({ decision: "", notes: "" });
+                    if (!submittingRuling) {
+                      setShowRulingModal(false);
+                      setSelectedDispute(null);
+                      setRuling({ decision: "", notes: "" });
+                    }
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                  disabled={submittingRuling}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!ruling.decision}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!ruling.decision || submittingRuling}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Submit Ruling
+                  {submittingRuling ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Ruling"
+                  )}
                 </button>
               </div>
             </form>

@@ -97,7 +97,7 @@ function BuyerHeader({ sidebarOpen, setSidebarOpen }) {
 
             {/* Cart Icon */}
             <Link
-              to="/cart"
+              to="/buyer/cart"
               className="relative text-white hover:text-yellow-400 transition-all duration-200 p-2 rounded-lg hover:bg-green-600/50 group"
             >
               <svg

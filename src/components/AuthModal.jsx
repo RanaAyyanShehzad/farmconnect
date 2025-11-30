@@ -409,7 +409,13 @@ const AuthModal = ({ isOpen, onClose }) => {
             })
           );
         } catch (profileError) {
-          toast.error(profileError.message);
+          // Don't show toast for admin or unsupported roles - they don't have profile endpoints
+          if (
+            normalizedRole !== "admin" &&
+            !profileError.message?.includes("Unsupported")
+          ) {
+            toast.error(profileError.message);
+          }
         }
         login(normalizedRole);
 

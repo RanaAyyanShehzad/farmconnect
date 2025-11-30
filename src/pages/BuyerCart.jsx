@@ -20,6 +20,7 @@ function BuyerCart() {
     paymentMethod: "cod",
   });
   const [cartId, setCartId] = useState(null);
+  const [placingOrder, setPlacingOrder] = useState(false);
 
   const navigate = useNavigate();
   const { openPreview, ProductPreviewModal } = useProductPreview();
@@ -101,7 +102,10 @@ function BuyerCart() {
       return;
     }
 
+    if (placingOrder) return; // Prevent duplicate calls
+
     try {
+      setPlacingOrder(true);
       const response = await fetch(
         "https://agrofarm-vd8i.onrender.com/api/v1/order/place-order",
         {
@@ -135,6 +139,8 @@ function BuyerCart() {
     } catch (err) {
       console.error("Error placing order:", err);
       toast.error(err.message || "Failed to place order. Please try again.");
+    } finally {
+      setPlacingOrder(false);
     }
   };
 
@@ -707,7 +713,7 @@ function BuyerCart() {
             </p>
             <button
               onClick={() => {
-                navigate("/farmer/farmerProducts");
+                navigate("/buyer/products");
               }}
               className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md transition-colors"
             >
@@ -929,15 +935,24 @@ function BuyerCart() {
                     <button
                       type="button"
                       onClick={() => setShowCheckoutModal(false)}
-                      className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      disabled={placingOrder}
+                      className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium shadow-md transition-colors"
+                      disabled={placingOrder}
+                      className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      Place Order
+                      {placingOrder ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Placing Order...
+                        </>
+                      ) : (
+                        "Place Order"
+                      )}
                     </button>
                   </div>
                 </form>

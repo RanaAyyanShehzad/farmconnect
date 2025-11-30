@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import DisputeModal from "../components/DisputeModal";
+import { RefreshCw, Gavel } from "lucide-react";
 
 function MyOrders() {
   const [orders, setOrders] = useState([]);
@@ -17,6 +18,7 @@ function MyOrders() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [orderForDispute, setOrderForDispute] = useState(null);
+  const [confirmingOrderId, setConfirmingOrderId] = useState(null);
   const navigate = useNavigate();
   const { role } = useAuth();
 
@@ -99,6 +101,8 @@ function MyOrders() {
 
   // Confirm order receipt (buyer)
   const confirmOrderReceipt = async (orderId) => {
+    if (confirmingOrderId) return; // Prevent duplicate calls
+
     if (
       !window.confirm(
         "Confirm that you have received this order? This will complete the payment."
@@ -107,6 +111,7 @@ function MyOrders() {
       return;
 
     try {
+      setConfirmingOrderId(orderId);
       const response = await fetch(
         `https://agrofarm-vd8i.onrender.com/api/v1/order/confirm-receipt/${orderId}`,
         {
@@ -118,17 +123,34 @@ function MyOrders() {
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to confirm receipt");
+        // Handle specific error cases
+        if (response.status === 400) {
+          toast.error(
+            data.message ||
+              "Cannot confirm receipt. Order must be in 'delivered' status and have no open disputes."
+          );
+        } else if (response.status === 403) {
+          toast.error(
+            data.message || "You don't have permission to confirm this order."
+          );
+        } else if (response.status === 404) {
+          toast.error(data.message || "Order not found.");
+        } else {
+          toast.error(data.message || "Failed to confirm receipt");
+        }
+        throw new Error(data.message || "Failed to confirm receipt");
       }
 
-      const data = await response.json();
       toast.success(data.message || "Order receipt confirmed successfully");
-      fetchUserOrders(); // Refresh orders
+      await fetchUserOrders(); // Refresh orders
     } catch (err) {
       console.error("Error confirming receipt:", err);
-      toast.error(err.message || "Failed to confirm receipt");
+      // Error toast already shown above
+    } finally {
+      setConfirmingOrderId(null);
     }
   };
 
@@ -294,12 +316,25 @@ function MyOrders() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-green-800">My Orders</h1>
-        <button
-          onClick={() => navigate(getProductsPage())}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition"
-        >
-          Continue Shopping
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={async () => {
+              await fetchUserOrders();
+              toast.success("Orders refreshed");
+            }}
+            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition"
+            title="Refresh Orders"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <button
+            onClick={() => navigate(getProductsPage())}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition"
+          >
+            Continue Shopping
+          </button>
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -610,7 +645,9 @@ function MyOrders() {
                 {/* Action Buttons for Delivered Orders */}
                 {(order.orderStatus === "delivered" ||
                   order.status === "delivered") &&
-                  order.payment_status !== "complete" && (
+                  order.payment_status !== "complete" &&
+                  order.paymentInfo?.status !== "complete" &&
+                  order.paymentInfo?.status !== "completed" && (
                     <div className="flex justify-end gap-3 mt-6">
                       {order.dispute_status !== "open" &&
                         order.dispute_status !== "pending_admin_review" && (
@@ -626,31 +663,77 @@ function MyOrders() {
                             </button>
                             <button
                               onClick={() => confirmOrderReceipt(order._id)}
-                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium"
+                              disabled={confirmingOrderId === order._id}
+                              className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2 ${
+                                confirmingOrderId === order._id
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : ""
+                              }`}
                             >
-                              Confirm Receipt
+                              {confirmingOrderId === order._id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                  Confirming...
+                                </>
+                              ) : (
+                                "Confirm Receipt"
+                              )}
                             </button>
                           </>
                         )}
-                      {order.dispute_status === "open" && (
-                        <span className="px-4 py-2 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
-                          Dispute in Progress
-                        </span>
-                      )}
-                      {order.dispute_status === "pending_admin_review" && (
-                        <span className="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm font-medium">
-                          Awaiting Admin Review
-                        </span>
+                      {(order.dispute_status === "open" ||
+                        order.dispute_status === "pending_admin_review") && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => navigate("/buyer/disputes")}
+                            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2"
+                          >
+                            <Gavel className="w-4 h-4" />
+                            View Dispute
+                          </button>
+                          <span className="px-4 py-2 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
+                            {order.dispute_status === "open"
+                              ? "Dispute in Progress"
+                              : "Awaiting Admin Review"}{" "}
+                            - Cannot Confirm Receipt
+                          </span>
+                        </div>
                       )}
                     </div>
                   )}
 
+                {/* Show confirmation status for received orders */}
+                {(order.orderStatus === "received" ||
+                  order.status === "received" ||
+                  order.payment_status === "complete" ||
+                  order.paymentInfo?.status === "complete" ||
+                  order.paymentInfo?.status === "completed") && (
+                  <div className="flex justify-end mt-6">
+                    <span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium flex items-center gap-2">
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      Order Confirmed & Payment Completed
+                    </span>
+                  </div>
+                )}
+
                 {/* Dispute Button for Shipped Orders */}
                 {(order.orderStatus === "shipped" ||
-                  order.status === "shipped") &&
-                  order.dispute_status !== "open" &&
-                  order.dispute_status !== "pending_admin_review" && (
-                    <div className="flex justify-end mt-6">
+                  order.status === "shipped") && (
+                  <div className="flex justify-end mt-6">
+                    {order.dispute_status !== "open" &&
+                    order.dispute_status !== "pending_admin_review" ? (
                       <button
                         onClick={() => {
                           setOrderForDispute(order);
@@ -660,8 +743,17 @@ function MyOrders() {
                       >
                         Create Dispute
                       </button>
-                    </div>
-                  )}
+                    ) : (
+                      <button
+                        onClick={() => navigate("/buyer/disputes")}
+                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2"
+                      >
+                        <Gavel className="w-4 h-4" />
+                        View Dispute
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}

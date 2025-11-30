@@ -34,7 +34,8 @@ function AdminUserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [lockDuration, setLockDuration] = useState(30);
   const [suspensionReason, setSuspensionReason] = useState("");
-  const [suspendedUntil, setSuspendedUntil] = useState("");
+  const [suspensionDuration, setSuspensionDuration] = useState(60);
+  const [actionLoading, setActionLoading] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
   const [passwordErrors, setPasswordErrors] = useState([]);
   const [newUser, setNewUser] = useState({
@@ -92,8 +93,10 @@ function AdminUserManagement() {
   };
 
   const handleDeleteUser = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser || actionLoading) return;
+
     try {
+      setActionLoading(true);
       const response = await axios.delete(
         `${API_BASE}/users/${selectedUser.role}/${selectedUser._id}`,
         { withCredentials: true }
@@ -101,42 +104,64 @@ function AdminUserManagement() {
       toast.success(response.data.message || "User deleted successfully");
       setShowDeleteModal(false);
       setSelectedUser(null);
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to delete user");
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleToggleStatus = async (user, action, additionalData = {}) => {
+    if (actionLoading) return; // Prevent duplicate calls
+
     try {
+      setActionLoading(true);
       const response = await axios.put(
         `${API_BASE}/users/${user.role}/${user._id}/toggle-status`,
         { action, ...additionalData },
         { withCredentials: true }
       );
       toast.success(response.data.message || "User status updated");
-      setShowLockModal(false);
-      setShowSuspendModal(false);
-      setLockDuration(30);
-      setSuspensionReason("");
-      setSuspendedUntil("");
-      fetchUsers();
+
+      // Only close modals if they're actually open
+      if (showLockModal) {
+        setShowLockModal(false);
+        setLockDuration(30);
+      }
+      if (showSuspendModal) {
+        setShowSuspendModal(false);
+        setSuspensionReason("");
+        setSuspensionDuration(60);
+      }
+
+      setSelectedUser(null);
+      await fetchUsers(); // Wait for fetch to complete
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update status");
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleSuspendUser = async () => {
-    if (!selectedUser || !suspensionReason.trim()) {
-      toast.error("Please provide a suspension reason");
+    if (!selectedUser) {
+      toast.error("No user selected");
+      return;
+    }
+    if (actionLoading) return; // Prevent duplicate calls
+
+    if (!suspensionDuration || suspensionDuration <= 0) {
+      toast.error(
+        "Please provide a valid suspension duration (must be > 0 minutes)"
+      );
       return;
     }
     try {
+      setActionLoading(true);
       const suspendData = {
-        suspensionReason,
-        ...(suspendedUntil && {
-          suspendedUntil: new Date(suspendedUntil).toISOString(),
-        }),
+        duration: Number(suspensionDuration),
+        reason: suspensionReason.trim() || "Policy violation",
       };
       const response = await axios.post(
         `${API_BASE}/users/${selectedUser.role}/${selectedUser._id}/suspend`,
@@ -146,25 +171,32 @@ function AdminUserManagement() {
       toast.success(response.data.message || "User suspended successfully");
       setShowSuspendModal(false);
       setSuspensionReason("");
-      setSuspendedUntil("");
+      setSuspensionDuration(60);
       setSelectedUser(null);
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to suspend user");
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleUnsuspendUser = async (user) => {
+    if (actionLoading) return; // Prevent duplicate calls
+
     try {
+      setActionLoading(true);
       const response = await axios.post(
         `${API_BASE}/users/${user.role}/${user._id}/unsuspend`,
         {},
         { withCredentials: true }
       );
       toast.success(response.data.message || "User unsuspended successfully");
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to unsuspend user");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -199,7 +231,7 @@ function AdminUserManagement() {
   };
 
   const handleForcePasswordReset = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser || actionLoading) return;
 
     // If password is provided, validate it
     if (resetPassword && passwordErrors.length > 0) {
@@ -208,6 +240,7 @@ function AdminUserManagement() {
     }
 
     try {
+      setActionLoading(true);
       const requestData = resetPassword ? { newPassword: resetPassword } : {};
 
       const response = await axios.post(
@@ -228,8 +261,11 @@ function AdminUserManagement() {
       setSelectedUser(null);
       setResetPassword("");
       setPasswordErrors([]);
+      await fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to reset password");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -249,10 +285,27 @@ function AdminUserManagement() {
       );
     }
     if (user.isSuspended) {
+      const suspendedUntil = user.suspendedUntil
+        ? new Date(user.suspendedUntil)
+        : null;
+      const isExpired = suspendedUntil && suspendedUntil < new Date();
       return (
-        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-          Suspended
-        </span>
+        <div className="flex flex-col gap-1">
+          <span
+            className={`px-2 py-1 text-xs font-semibold rounded-full ${
+              isExpired
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-purple-100 text-purple-800"
+            }`}
+          >
+            {isExpired ? "Suspension Expired" : "Suspended"}
+          </span>
+          {suspendedUntil && !isExpired && (
+            <span className="text-xs text-gray-500">
+              Until: {suspendedUntil.toLocaleString()}
+            </span>
+          )}
+        </div>
       );
     }
     if (user.lockUntil && new Date(user.lockUntil) > new Date()) {
@@ -403,20 +456,24 @@ function AdminUserManagement() {
                           <>
                             {user.isActive ? (
                               <button
-                                onClick={() =>
-                                  handleToggleStatus(user, "deactivate")
-                                }
-                                className="text-yellow-600 hover:text-yellow-900"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStatus(user, "deactivate");
+                                }}
+                                disabled={actionLoading}
+                                className="text-yellow-600 hover:text-yellow-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Deactivate"
                               >
                                 <XCircle className="w-5 h-5" />
                               </button>
                             ) : (
                               <button
-                                onClick={() =>
-                                  handleToggleStatus(user, "activate")
-                                }
-                                className="text-green-600 hover:text-green-900"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStatus(user, "activate");
+                                }}
+                                disabled={actionLoading}
+                                className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Activate"
                               >
                                 <CheckCircle className="w-5 h-5" />
@@ -425,21 +482,25 @@ function AdminUserManagement() {
                             {user.lockUntil &&
                             new Date(user.lockUntil) > new Date() ? (
                               <button
-                                onClick={() =>
-                                  handleToggleStatus(user, "unlock")
-                                }
-                                className="text-blue-600 hover:text-blue-900"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStatus(user, "unlock");
+                                }}
+                                disabled={actionLoading}
+                                className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Unlock"
                               >
                                 <Unlock className="w-5 h-5" />
                               </button>
                             ) : (
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSelectedUser(user);
                                   setShowLockModal(true);
                                 }}
-                                className="text-orange-600 hover:text-orange-900"
+                                disabled={actionLoading}
+                                className="text-orange-600 hover:text-orange-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Lock"
                               >
                                 <Lock className="w-5 h-5" />
@@ -447,19 +508,25 @@ function AdminUserManagement() {
                             )}
                             {user.isSuspended ? (
                               <button
-                                onClick={() => handleUnsuspendUser(user)}
-                                className="text-green-600 hover:text-green-900"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnsuspendUser(user);
+                                }}
+                                disabled={actionLoading}
+                                className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Unsuspend"
                               >
                                 <Ban className="w-5 h-5" />
                               </button>
                             ) : (
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSelectedUser(user);
                                   setShowSuspendModal(true);
                                 }}
-                                className="text-purple-600 hover:text-purple-900"
+                                disabled={actionLoading}
+                                className="text-purple-600 hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Suspend"
                               >
                                 <Ban className="w-5 h-5" />
@@ -504,17 +571,22 @@ function AdminUserManagement() {
 
       {/* Add User Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-md"
+            className="bg-white rounded-lg w-full max-w-md max-h-[90vh] flex flex-col"
           >
-            <h2 className="text-2xl font-bold mb-4">Add New User</h2>
-            <form onSubmit={handleAddUser} className="space-y-4">
+            <div className="p-6 pb-4 flex-shrink-0 border-b border-gray-200">
+              <h2 className="text-2xl font-bold">Add New User</h2>
+            </div>
+            <form
+              onSubmit={handleAddUser}
+              className="flex-1 overflow-y-auto p-6 space-y-4"
+            >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -523,12 +595,16 @@ function AdminUserManagement() {
                   onChange={(e) =>
                     setNewUser({ ...newUser, name: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., John Doe"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter the user's full name
+                </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -537,12 +613,16 @@ function AdminUserManagement() {
                   onChange={(e) =>
                     setNewUser({ ...newUser, email: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., john.doe@example.com"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Format: user@example.com
+                </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Password <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="password"
@@ -551,12 +631,25 @@ function AdminUserManagement() {
                   onChange={(e) =>
                     setNewUser({ ...newUser, password: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter secure password"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs font-semibold text-blue-800 mb-1">
+                    Password Requirements:
+                  </p>
+                  <ul className="text-xs text-blue-700 space-y-0.5 list-disc list-inside">
+                    <li>At least 8 characters</li>
+                    <li>One uppercase letter (A-Z)</li>
+                    <li>One lowercase letter (a-z)</li>
+                    <li>One number (0-9)</li>
+                    <li>One special character (!@#$%^&*...)</li>
+                  </ul>
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Phone Number
                 </label>
                 <input
                   type="tel"
@@ -564,11 +657,15 @@ function AdminUserManagement() {
                   onChange={(e) =>
                     setNewUser({ ...newUser, phone: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., +92 300 1234567 or 03001234567"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Format: Country code + number (optional)
+                </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Address
                 </label>
                 <input
@@ -577,8 +674,12 @@ function AdminUserManagement() {
                   onChange={(e) =>
                     setNewUser({ ...newUser, address: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., 123 Main Street, City, Country"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Full address including street, city, and country
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -597,7 +698,7 @@ function AdminUserManagement() {
                   <option value="supplier">Supplier</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-4 sticky bottom-0 bg-white border-t border-gray-200 -mx-6 px-6 py-4 mt-4">
                 <button
                   type="submit"
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -633,9 +734,10 @@ function AdminUserManagement() {
             <div className="flex gap-3">
               <button
                 onClick={handleDeleteUser}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Delete
+                {actionLoading ? "Deleting..." : "Delete"}
               </button>
               <button
                 onClick={() => {
@@ -679,9 +781,10 @@ function AdminUserManagement() {
                 onClick={() => {
                   handleToggleStatus(selectedUser, "lock", { lockDuration });
                 }}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Lock User
+                {actionLoading ? "Locking..." : "Lock User"}
               </button>
               <button
                 onClick={() => {
@@ -700,54 +803,68 @@ function AdminUserManagement() {
 
       {/* Suspend User Modal */}
       {showSuspendModal && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-md"
+            className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md"
           >
-            <h2 className="text-2xl font-bold mb-4">Suspend User</h2>
-            <div className="space-y-4 mb-4">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">
+              Suspend User
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Suspending: <strong>{selectedUser.name}</strong> (
+              {selectedUser.email})
+            </p>
+            <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Suspension Reason <span className="text-red-500">*</span>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Duration (Minutes) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={suspensionDuration}
+                  onChange={(e) =>
+                    setSuspensionDuration(Number(e.target.value))
+                  }
+                  placeholder="e.g., 60 for 1 hour, 1440 for 1 day"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Common durations: 60 (1 hour), 1440 (1 day), 10080 (1 week)
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Reason (Optional)
                 </label>
                 <textarea
                   value={suspensionReason}
                   onChange={(e) => setSuspensionReason(e.target.value)}
-                  placeholder="Enter reason for suspension..."
+                  placeholder="Enter reason for suspension (default: 'Policy violation')..."
                   rows="3"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Suspend Until (optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={suspendedUntil}
-                  onChange={(e) => setSuspendedUntil(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
               </div>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={handleSuspendUser}
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Suspend User
+                {actionLoading ? "Suspending..." : "Suspend User"}
               </button>
               <button
                 onClick={() => {
                   setShowSuspendModal(false);
                   setSelectedUser(null);
                   setSuspensionReason("");
-                  setSuspendedUntil("");
+                  setSuspensionDuration(60);
                 }}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
               >
                 Cancel
               </button>

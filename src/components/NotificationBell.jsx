@@ -70,8 +70,13 @@ function NotificationBell() {
       case "order_delivered":
       case "order_received":
         return "📦";
+      case "dispute_opened":
       case "dispute_created":
+        return "⚠️";
       case "dispute_response":
+        return "💬";
+      case "dispute_escalated":
+        return "🔴";
       case "dispute_resolved":
         return "⚖️";
       default:

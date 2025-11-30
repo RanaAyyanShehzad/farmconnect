@@ -14,6 +14,7 @@ function NotificationsPage() {
     notifications,
     unreadCount,
     loading,
+    pagination,
     fetchNotifications,
     markAsRead,
     markAllAsRead,
@@ -29,6 +30,12 @@ function NotificationsPage() {
     };
     fetchNotifications(params);
   }, [filter, page, fetchNotifications]);
+
+  useEffect(() => {
+    if (pagination.totalPages) {
+      setTotalPages(pagination.totalPages);
+    }
+  }, [pagination]);
 
   const handleMarkAsRead = async (notificationId) => {
     try {
@@ -80,10 +87,13 @@ function NotificationsPage() {
         return "📬";
       case "order_received":
         return "🎉";
+      case "dispute_opened":
       case "dispute_created":
         return "⚠️";
       case "dispute_response":
         return "💬";
+      case "dispute_escalated":
+        return "🔴";
       case "dispute_resolved":
         return "⚖️";
       default:

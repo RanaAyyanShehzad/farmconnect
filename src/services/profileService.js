@@ -2,12 +2,15 @@ const PROFILE_ENDPOINTS = {
   farmer: "https://agrofarm-vd8i.onrender.com/api/farmers/me",
   buyer: "https://agrofarm-vd8i.onrender.com/api/buyers/me",
   supplier: "https://agrofarm-vd8i.onrender.com/api/suppliers/me",
+  admin: null, // Admin doesn't have a profile endpoint
 };
 
 export async function fetchProfileForRole(role) {
   const endpoint = PROFILE_ENDPOINTS[role];
-  if (!endpoint) {
-    throw new Error("Unsupported role");
+
+  // Admin role doesn't have a profile endpoint, return empty profile
+  if (role === "admin" || !endpoint) {
+    return { name: "", email: "", phone: "", address: "", img: "" };
   }
 
   const response = await fetch(endpoint, {
@@ -15,7 +18,8 @@ export async function fetchProfileForRole(role) {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch profile");
+    // Don't throw error, just return empty profile
+    return { name: "", email: "", phone: "", address: "", img: "" };
   }
 
   const data = await response.json();

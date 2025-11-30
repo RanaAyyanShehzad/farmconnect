@@ -3,7 +3,7 @@ import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import { useNotifications } from "../context/NotificationContext";
 import DisputeResolveModal from "../components/DisputeResolveModal";
-import { Bell, Gavel, AlertCircle } from "lucide-react";
+import { Bell, Gavel, AlertCircle, RefreshCw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -31,7 +31,7 @@ function BuyerDashboard() {
   const [disputes, setDisputes] = useState([]);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [selectedDispute, setSelectedDispute] = useState(null);
-  const { notifications, unreadCount } = useNotifications();
+  const { notifications, unreadCount, fetchNotifications } = useNotifications();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -110,48 +110,24 @@ function BuyerDashboard() {
 
   const fetchBuyerDisputes = async () => {
     try {
-      // Fetch buyer's orders and check for disputes
-      const ordersResponse = await axios.get(
-        "https://agrofarm-vd8i.onrender.com/api/v1/order/user-orders",
+      // Use buyer disputes endpoint: GET /api/v1/order/disputes/buyer
+      const response = await axios.get(
+        "https://agrofarm-vd8i.onrender.com/api/v1/order/disputes/buyer",
         { withCredentials: true }
       );
-      const orders = ordersResponse.data.orders || [];
 
-      // Extract disputes from orders
-      const orderDisputes = [];
-      for (const order of orders) {
-        if (
-          order.dispute_status &&
-          order.dispute_status !== "none" &&
-          order.dispute_status !== "closed"
-        ) {
-          // Get seller from first product
-          const firstProduct = order.products?.[0];
-          const sellerId = firstProduct?.farmerId || firstProduct?.supplierId;
-          const sellerRole = firstProduct?.farmerId ? "farmer" : "supplier";
-
-          orderDisputes.push({
-            _id: order.dispute_id || order._id + "_dispute",
-            orderId: order._id,
-            status: order.dispute_status,
-            order: order,
-            buyerId:
-              order.customerId ||
-              (order.buyerId && typeof order.buyerId === "object"
-                ? order.buyerId
-                : { _id: "current_user" }),
-            sellerId: sellerId || null,
-            sellerRole: sellerRole,
-            disputeType: order.dispute_type || "other",
-            reason: order.dispute_reason || "Dispute on order",
-            buyerProof: order.proofOfFault || null,
-            sellerResponse: order.dispute_response || null,
-          });
-        }
+      if (response.data.success && response.data.disputes) {
+        // Filter to show only open/pending disputes on dashboard
+        const activeDisputes = response.data.disputes.filter(
+          (d) => d.status !== "closed"
+        );
+        setDisputes(activeDisputes);
+      } else {
+        setDisputes([]);
       }
-      setDisputes(orderDisputes);
     } catch (error) {
       console.error("Error fetching disputes:", error);
+      setDisputes([]);
     }
   };
 
@@ -369,12 +345,34 @@ function BuyerDashboard() {
             <h2 className="text-lg font-semibold text-gray-800">
               Recent Orders
             </h2>
-            <Link
-              to="/buyer/myorders"
-              className="text-green-600 hover:text-green-800 text-sm font-semibold"
-            >
-              View All
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const ordersResponse = await axios.get(
+                      "https://agrofarm-vd8i.onrender.com/api/v1/order/user-orders",
+                      { withCredentials: true }
+                    );
+                    const allOrders = ordersResponse.data.orders || [];
+                    setRecentOrders(allOrders.slice(0, 3));
+                    setLoading(false);
+                  } catch (err) {
+                    setLoading(false);
+                  }
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Orders"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <Link
+                to="/buyer/myorders"
+                className="text-green-600 hover:text-green-800 text-sm font-semibold"
+              >
+                View All
+              </Link>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -507,12 +505,23 @@ function BuyerDashboard() {
               <Gavel className="w-5 h-5 text-orange-600" />
               My Disputes
             </h2>
-            <Link
-              to="/buyer/disputes"
-              className="text-sm text-green-600 hover:text-green-800 font-semibold"
-            >
-              View All
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  await fetchBuyerDisputes();
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Disputes"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <Link
+                to="/buyer/disputes"
+                className="text-sm text-green-600 hover:text-green-800 font-semibold"
+              >
+                View All
+              </Link>
+            </div>
           </div>
           {disputes.length > 0 ? (
             <div className="space-y-3">
@@ -524,36 +533,45 @@ function BuyerDashboard() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        Order #{dispute.orderId?.slice(-8) || "N/A"}
+                        Order #
+                        {typeof dispute.orderId === "object" &&
+                        dispute.orderId?._id
+                          ? dispute.orderId._id.slice(-8)
+                          : typeof dispute.orderId === "string"
+                          ? dispute.orderId.slice(-8)
+                          : "N/A"}
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
                         Status: {dispute.status}
                       </p>
-                      {dispute.sellerResponse && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          Seller has responded
-                        </p>
-                      )}
+                      {dispute.sellerResponse?.proposal &&
+                        dispute.sellerResponse?.respondedAt && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Seller has responded
+                          </p>
+                        )}
                     </div>
-                    {dispute.status === "open" && dispute.sellerResponse && (
-                      <button
-                        onClick={() => {
-                          // If we have a real dispute ID, show modal, otherwise navigate
-                          if (
-                            dispute._id &&
-                            !dispute._id.toString().includes("_dispute")
-                          ) {
-                            setSelectedDispute(dispute);
-                            setShowDisputeModal(true);
-                          } else {
-                            navigate("/buyer/disputes");
-                          }
-                        }}
-                        className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition"
-                      >
-                        Resolve
-                      </button>
-                    )}
+                    {dispute.status === "open" &&
+                      dispute.sellerResponse?.proposal &&
+                      dispute.sellerResponse?.respondedAt && (
+                        <button
+                          onClick={() => {
+                            // If we have a real dispute ID, show modal, otherwise navigate
+                            if (
+                              dispute._id &&
+                              !dispute._id.toString().includes("_dispute")
+                            ) {
+                              setSelectedDispute(dispute);
+                              setShowDisputeModal(true);
+                            } else {
+                              navigate("/buyer/disputes");
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition"
+                        >
+                          Resolve
+                        </button>
+                      )}
                   </div>
                 </div>
               ))}
@@ -577,12 +595,23 @@ function BuyerDashboard() {
                 </span>
               )}
             </h2>
-            <Link
-              to="/notifications"
-              className="text-sm text-green-600 hover:text-green-800 font-semibold"
-            >
-              View All
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  await fetchNotifications();
+                }}
+                className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"
+                title="Refresh Notifications"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <Link
+                to="/notifications"
+                className="text-sm text-green-600 hover:text-green-800 font-semibold"
+              >
+                View All
+              </Link>
+            </div>
           </div>
           {notifications.length > 0 ? (
             <div className="space-y-3">

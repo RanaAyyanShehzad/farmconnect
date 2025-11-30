@@ -685,11 +685,11 @@ const LandingPage = () => {
                     },
                   }}
                 >
-                  FarmConnect aims to empower small-scale farmers with access to
-                  real-time market trends, AI-driven insights, and seamless
-                  transactions. By providing a secure and reliable digital
-                  marketplace, we help all agricultural stakeholders grow their
-                  businesses and achieve long-term sustainability.
+                  FarmConnect provides a comprehensive platform with order
+                  management, dispute resolution, and secure payment processing.
+                  By offering a reliable digital marketplace, we help all
+                  agricultural stakeholders conduct business efficiently and
+                  achieve long-term sustainability.
                 </motion.p>
               </div>
             </motion.div>
@@ -757,9 +757,9 @@ const LandingPage = () => {
               },
               {
                 icon: "📱",
-                title: "Real-Time Updates",
+                title: "Real-Time Notifications",
                 description:
-                  "Get live market prices and trends to make informed decisions",
+                  "Stay updated with instant notifications for orders, disputes, and important updates",
               },
               {
                 icon: "🔒",
@@ -775,9 +775,9 @@ const LandingPage = () => {
               },
               {
                 icon: "📊",
-                title: "Data Insights",
+                title: "Order Management",
                 description:
-                  "AI-powered analytics to optimize your agricultural business",
+                  "Comprehensive order tracking and management system for seamless transactions",
               },
               {
                 icon: "🌍",

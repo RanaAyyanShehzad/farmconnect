@@ -16,6 +16,12 @@ export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalNotifications: 0,
+    hasMore: false,
+  });
   const { isAuthenticated } = useAuth();
 
   const fetchNotifications = useCallback(
@@ -23,6 +29,12 @@ export function NotificationProvider({ children }) {
       if (!isAuthenticated) {
         setNotifications([]);
         setUnreadCount(0);
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalNotifications: 0,
+          hasMore: false,
+        });
         return;
       }
 
@@ -39,12 +51,81 @@ export function NotificationProvider({ children }) {
           { withCredentials: true }
         );
 
+        console.log("Notifications API Response:", response.data);
+        console.log("Response status:", response.status);
+
+        // Handle different response structures
+        let notificationsList = [];
+        let unreadCountValue = 0;
+
         if (response.data.success) {
-          setNotifications(response.data.data.notifications || []);
-          setUnreadCount(response.data.data.unreadCount || 0);
+          const data = response.data.data || response.data;
+
+          // Check if notifications are in data.notifications or directly in data
+          notificationsList =
+            data.notifications ||
+            data.notification ||
+            response.data.notifications ||
+            [];
+          setNotifications(notificationsList);
+
+          console.log("Fetched notifications:", notificationsList.length);
+          console.log("Notifications data:", notificationsList);
+
+          // Handle both old and new response structures
+          if (data.pagination) {
+            // New structure with pagination object
+            unreadCountValue = data.pagination.unreadCount || 0;
+            setUnreadCount(unreadCountValue);
+            setPagination({
+              currentPage: data.pagination.currentPage || 1,
+              totalPages: data.pagination.totalPages || 1,
+              totalNotifications: data.pagination.totalNotifications || 0,
+              hasMore: data.pagination.hasMore || false,
+            });
+          } else if (data.unreadCount !== undefined) {
+            // Old structure (backward compatibility)
+            unreadCountValue = data.unreadCount || 0;
+            setUnreadCount(unreadCountValue);
+            setPagination({
+              currentPage: parseInt(params.page || "1"),
+              totalPages: 1,
+              totalNotifications: notificationsList.length,
+              hasMore: false,
+            });
+          } else {
+            // Fallback: calculate unread count from notifications
+            unreadCountValue = notificationsList.filter(
+              (n) => !n.isRead
+            ).length;
+            setUnreadCount(unreadCountValue);
+            setPagination({
+              currentPage: parseInt(params.page || "1"),
+              totalPages: 1,
+              totalNotifications: notificationsList.length,
+              hasMore: false,
+            });
+          }
+
+          console.log("Unread count:", unreadCountValue);
+        } else if (response.data.notifications) {
+          // Handle case where notifications are directly in response.data
+          notificationsList = response.data.notifications || [];
+          setNotifications(notificationsList);
+          unreadCountValue = notificationsList.filter((n) => !n.isRead).length;
+          setUnreadCount(unreadCountValue);
+          console.log("Using direct notifications from response.data");
+        } else {
+          console.warn(
+            "Notifications API returned success: false",
+            response.data
+          );
+          console.warn("Full response:", response);
         }
       } catch (error) {
         console.error("Error fetching notifications:", error);
+        console.error("Error response:", error.response?.data);
+        console.error("Error status:", error.response?.status);
         // Don't show error toast for notifications to avoid spam
       } finally {
         setLoading(false);
@@ -143,6 +224,7 @@ export function NotificationProvider({ children }) {
         notifications,
         unreadCount,
         loading,
+        pagination,
         fetchNotifications,
         markAsRead,
         markAllAsRead,

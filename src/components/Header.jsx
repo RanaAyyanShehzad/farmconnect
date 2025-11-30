@@ -5,7 +5,6 @@ import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
 import LanguageToggle from "./LanguageToggle";
 import { useTranslation } from "../hooks/useTranslation";
 import NotificationBell from "./NotificationBell";
-import axios from "axios";
 
 function Header({ sidebarOpen, setSidebarOpen }) {
   // Get the name from Redux store
@@ -14,25 +13,6 @@ function Header({ sidebarOpen, setSidebarOpen }) {
   const weatherLabel =
     weather.status === "loading" ? "..." : weather.temperature;
   const { t } = useTranslation();
-  const [cartItemsCount, setCartItemsCount] = useState(0);
-
-  useEffect(() => {
-    const fetchCartCount = async () => {
-      try {
-        const response = await axios.get(
-          "https://agrofarm-vd8i.onrender.com/api/v1/cart",
-          { withCredentials: true }
-        );
-        if (response.data.success && response.data.cart) {
-          setCartItemsCount(response.data.cart.items?.length || 0);
-        }
-      } catch (error) {
-        // Silently fail if cart endpoint is not available
-        console.warn("Could not fetch cart count:", error);
-      }
-    };
-    fetchCartCount();
-  }, []);
 
   return (
     <header className="bg-gradient-to-r from-green-700 via-green-600 to-green-700 shadow-xl sticky top-0 z-30 border-b-2 border-yellow-400 h-14">
@@ -110,31 +90,6 @@ function Header({ sidebarOpen, setSidebarOpen }) {
             <div className="relative">
               <NotificationBell />
             </div>
-
-            {/* Cart Icon */}
-            <Link
-              to="/farmer/cart"
-              className="relative text-white hover:text-yellow-400 transition-all duration-200 p-2 rounded-lg hover:bg-green-600/50 group"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-              {cartItemsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {cartItemsCount > 9 ? "9+" : cartItemsCount}
-                </span>
-              )}
-            </Link>
 
             {/* User Avatar + Name */}
             <Link

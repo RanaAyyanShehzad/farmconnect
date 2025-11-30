@@ -63,32 +63,81 @@ function DisputeResponseModal({ isOpen, onClose, dispute, onSuccess }) {
     setEvidence(evidence.filter((_, i) => i !== index));
   };
 
-  // Fetch dispute ID if we only have order ID
+  // Fetch dispute ID - simplified approach using disputes endpoint
   useEffect(() => {
-    if (
-      isOpen &&
-      dispute &&
-      !dispute._id?.includes("_dispute") &&
-      dispute.orderId
-    ) {
-      // If we have a real dispute ID, use it
-      if (dispute._id && !dispute._id.includes("_dispute")) {
+    const fetchDisputeId = async () => {
+      if (!isOpen || !dispute) return;
+
+      // Check if we have a valid dispute ID (24-character MongoDB ObjectId)
+      const isValidObjectId = (id) => {
+        return (
+          id &&
+          typeof id === "string" &&
+          id.length === 24 &&
+          /^[0-9a-fA-F]{24}$/.test(id)
+        );
+      };
+
+      // dispute._id is already the disputeId - use it directly if valid
+      if (dispute._id && isValidObjectId(dispute._id)) {
         setDisputeId(dispute._id);
-      } else {
-        // Try to find dispute by order ID - we'll need to fetch from admin or use order ID
-        // For now, we'll use the order ID and let the backend handle it
-        // The backend should be able to find the dispute by order ID
-        setDisputeId(dispute.orderId);
+        return;
       }
-    } else if (isOpen && dispute?._id) {
-      setDisputeId(dispute._id);
-    }
+
+      // If no valid _id, fetch disputes list and find by orderId
+      if (dispute.orderId) {
+        setLoadingDispute(true);
+        try {
+          const orderId =
+            typeof dispute.orderId === "object"
+              ? dispute.orderId._id
+              : dispute.orderId;
+
+          // Use seller disputes endpoint: GET /api/v1/order/disputes
+          const response = await axios.get(`${API_BASE}/order/disputes`, {
+            withCredentials: true,
+          });
+
+          if (response.data.success && response.data.disputes?.length > 0) {
+            // Find the dispute that matches the orderId
+            const foundDispute = response.data.disputes.find(
+              (d) =>
+                (d.orderId?._id || d.orderId) === orderId ||
+                d.orderId?._id === orderId
+            );
+
+            if (foundDispute?._id && isValidObjectId(foundDispute._id)) {
+              setDisputeId(foundDispute._id);
+            } else {
+              toast.error(
+                "Dispute not found for this order. Please refresh the page."
+              );
+            }
+          } else {
+            toast.error("No disputes found. Please refresh the disputes page.");
+          }
+        } catch (error) {
+          console.error("Error fetching disputes:", error);
+          toast.error("Failed to fetch disputes. Please try again.");
+        } finally {
+          setLoadingDispute(false);
+        }
+      } else {
+        toast.error("Dispute ID or Order ID is required.");
+      }
+    };
+
+    fetchDisputeId();
   }, [isOpen, dispute]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!proposal.trim()) {
       toast.error("Please provide a resolution proposal");
+      return;
+    }
+    if (proposal.length > 2000) {
+      toast.error("Proposal must be 2000 characters or less");
       return;
     }
     if (evidence.length === 0) {
@@ -134,6 +183,20 @@ function DisputeResponseModal({ isOpen, onClose, dispute, onSuccess }) {
   };
 
   if (!isOpen || !dispute) return null;
+
+  // Show loading state while fetching dispute ID
+  if (loadingDispute) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8">
+          <div className="flex items-center gap-4">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            <p className="text-gray-700">Loading dispute details...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -246,8 +309,12 @@ function DisputeResponseModal({ isOpen, onClose, dispute, onSuccess }) {
                 placeholder="Describe your proposed resolution (e.g., replacement, refund, partial refund)..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 rows="4"
+                maxLength={2000}
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">
+                {proposal.length}/2000 characters
+              </p>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4 flex items-start gap-3">

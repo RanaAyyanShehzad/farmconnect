@@ -28,6 +28,7 @@ function AdminOrders() {
   const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState("");
   const [newPaymentStatus, setNewPaymentStatus] = useState("");
+  const [statusReason, setStatusReason] = useState("");
 
   useEffect(() => {
     fetchOrders();
@@ -166,19 +167,31 @@ function AdminOrders() {
   const handleStatusChange = async () => {
     if (!selectedOrder || !newStatus) return;
     try {
+      const requestBody = {
+        status: newStatus,
+      };
+      // Add reason if provided
+      if (statusReason.trim()) {
+        requestBody.reason = statusReason.trim();
+      }
+
       const response = await axios.put(
         `${API_BASE}/orders/${selectedOrder._id}/status`,
-        { status: newStatus },
+        requestBody,
         { withCredentials: true }
       );
       if (response.data.success) {
-        toast.success("Order status updated successfully");
+        toast.success(
+          response.data.message || "Order status updated successfully"
+        );
         setShowStatusModal(false);
         setNewStatus("");
+        setStatusReason("");
         fetchOrders();
         handleViewOrder(selectedOrder._id); // Refresh order details
       }
     } catch (error) {
+      console.error("Error updating order status:", error);
       toast.error(
         error.response?.data?.message || "Failed to update order status"
       );
@@ -622,26 +635,47 @@ function AdminOrders() {
             </h2>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                New Status
+                New Status *
               </label>
               <select
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
               >
+                <option value="">Select Status</option>
                 <option value="pending">Pending</option>
                 <option value="processing">Processing</option>
+                <option value="confirmed">Confirmed</option>
                 <option value="shipped">Shipped</option>
                 <option value="delivered">Delivered</option>
                 <option value="received">Received</option>
                 <option value="canceled">Canceled</option>
+                <option value="cancelled">Cancelled</option>
               </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason (Optional)
+              </label>
+              <textarea
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                placeholder="Enter reason for status change (e.g., Admin override due to shipping delay)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                rows="3"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This reason will be included in the notification sent to the
+                customer.
+              </p>
             </div>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => {
                   setShowStatusModal(false);
                   setNewStatus("");
+                  setStatusReason("");
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition"
               >
@@ -649,7 +683,8 @@ function AdminOrders() {
               </button>
               <button
                 onClick={handleStatusChange}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+                disabled={!newStatus}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Update Status
               </button>
