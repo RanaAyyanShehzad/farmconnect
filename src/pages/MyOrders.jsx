@@ -45,6 +45,147 @@ function MyOrders() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  // Get order status consistently - prioritize orderStatus, fallback to status
+  const getOrderStatus = (order) => {
+    return order?.orderStatus || order?.status || "pending";
+  };
+
+  // Get payment status consistently
+  const getPaymentStatus = (order) => {
+    return order?.paymentInfo?.status || order?.payment_status || "pending";
+  };
+
+  // Check if dispute can be created based on order status and timing
+  const canCreateDispute = (order) => {
+    const status = getOrderStatus(order);
+    const disputeStatus = order?.dispute_status || "none";
+
+    // If dispute already exists, cannot create a new one
+    if (disputeStatus === "open" || disputeStatus === "pending_admin_review") {
+      return { canCreate: false, reason: "dispute_exists" };
+    }
+
+    // For shipped orders: check if estimated delivery date has passed
+    if (status === "shipped") {
+      // Try order-level estimated delivery date first
+      let estimatedDeliveryDate =
+        order?.expected_delivery_date ||
+        order?.estimatedDeliveryDate ||
+        order?.deliveryInfo?.estimatedDeliveryDate;
+
+      // If not found at order level, try to find from shipped products
+      if (!estimatedDeliveryDate && order?.products?.length > 0) {
+        // Find the earliest estimated delivery date from shipped products
+        const shippedProducts = order.products.filter(
+          (p) => p.status === "shipped" || p.status === "processing"
+        );
+        if (shippedProducts.length > 0) {
+          const productDates = shippedProducts
+            .map((p) => p.estimatedDeliveryDate)
+            .filter(Boolean);
+          if (productDates.length > 0) {
+            // Use the earliest (soonest) estimated delivery date
+            estimatedDeliveryDate = productDates.sort()[0];
+          }
+        }
+      }
+
+      if (!estimatedDeliveryDate) {
+        return { canCreate: false, reason: "no_estimated_date" };
+      }
+
+      const estimatedDate = new Date(estimatedDeliveryDate);
+      const now = new Date();
+
+      // Check if estimated delivery date has passed (current time is after estimated date)
+      if (now < estimatedDate) {
+        return {
+          canCreate: false,
+          reason: "estimated_date_not_passed",
+          estimatedDate: estimatedDate.toLocaleDateString(),
+        };
+      }
+
+      return { canCreate: true };
+    }
+
+    // For delivered orders: check if still within dispute window (typically 7 days after delivery)
+    if (status === "delivered") {
+      const deliveredAt =
+        order?.deliveredAt || order?.deliveryInfo?.actualDeliveryDate;
+
+      if (!deliveredAt) {
+        return { canCreate: true }; // Allow if no delivery date recorded
+      }
+
+      const deliveryDate = new Date(deliveredAt);
+      const now = new Date();
+      const daysSinceDelivery = Math.floor(
+        (now - deliveryDate) / (1000 * 60 * 60 * 24)
+      );
+
+      // Dispute window: 7 days after delivery (should match backend configuration)
+      // This is the predefined time period within which buyer can create dispute after delivery
+      const DISPUTE_WINDOW_DAYS = 7;
+
+      if (daysSinceDelivery > DISPUTE_WINDOW_DAYS) {
+        return {
+          canCreate: false,
+          reason: "dispute_window_expired",
+          daysSinceDelivery,
+          windowDays: DISPUTE_WINDOW_DAYS,
+        };
+      }
+
+      return {
+        canCreate: true,
+        daysRemaining: DISPUTE_WINDOW_DAYS - daysSinceDelivery,
+      };
+    }
+
+    // For received orders: check if still within dispute window after receipt confirmation
+    if (status === "received") {
+      const receivedAt = order?.receivedAt;
+
+      if (!receivedAt) {
+        return { canCreate: true };
+      }
+
+      const receiptDate = new Date(receivedAt);
+      const now = new Date();
+      const daysSinceReceipt = Math.floor(
+        (now - receiptDate) / (1000 * 60 * 60 * 24)
+      );
+
+      // Dispute window: 7 days after receipt confirmation (should match backend configuration)
+      // This is the predefined time period within which buyer can create dispute after confirming receipt
+      const DISPUTE_WINDOW_DAYS = 7;
+
+      if (daysSinceReceipt > DISPUTE_WINDOW_DAYS) {
+        return {
+          canCreate: false,
+          reason: "dispute_window_expired",
+          daysSinceReceipt,
+          windowDays: DISPUTE_WINDOW_DAYS,
+        };
+      }
+
+      return {
+        canCreate: true,
+        daysRemaining: DISPUTE_WINDOW_DAYS - daysSinceReceipt,
+      };
+    }
+
+    // For other statuses, cannot create dispute
+    return { canCreate: false, reason: "invalid_status" };
+  };
+
+  // Check if dispute exists (open or pending review)
+  const hasOpenDispute = (order) => {
+    const disputeStatus = order?.dispute_status || "none";
+    return disputeStatus === "open" || disputeStatus === "pending_admin_review";
+  };
+
   // Star rating component
   const renderStarRating = (rating, interactive = false, onRate = null) => {
     const stars = [];
@@ -386,20 +527,24 @@ function MyOrders() {
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        order.orderStatus === "canceled" ||
-                        order.orderStatus === "cancelled"
-                          ? "bg-red-100 text-red-800"
-                          : order.orderStatus === "delivered"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${(() => {
+                        const status = getOrderStatus(order);
+                        if (status === "canceled" || status === "cancelled") {
+                          return "bg-red-100 text-red-800";
+                        }
+                        if (status === "delivered" || status === "received") {
+                          return "bg-green-100 text-green-800";
+                        }
+                        if (status === "shipped") {
+                          return "bg-blue-100 text-blue-800";
+                        }
+                        if (status === "confirmed" || status === "processing") {
+                          return "bg-purple-100 text-purple-800";
+                        }
+                        return "bg-yellow-100 text-yellow-800";
+                      })()}`}
                     >
-                      {(
-                        order.orderStatus ||
-                        order.status ||
-                        "PENDING"
-                      )?.toUpperCase()}
+                      {getOrderStatus(order)?.toUpperCase() || "PENDING"}
                     </span>
                     <p className="text-lg font-semibold">
                       {formatCurrency(order.totalPrice || 0)}
@@ -526,8 +671,7 @@ function MyOrders() {
                               )}
 
                               {/* Review Button for Delivered Orders */}
-                              {(order.orderStatus === "delivered" ||
-                                order.status === "delivered") && (
+                              {getOrderStatus(order) === "delivered" && (
                                 <div className="mt-3">
                                   <button
                                     onClick={() => openReviewModal(product)}
@@ -602,16 +746,27 @@ function MyOrders() {
                           Payment Status
                         </p>
                         <span
-                          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                            order.paymentInfo?.status === "complete" ||
-                            order.paymentInfo?.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : order.paymentInfo?.status === "pending"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
+                          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${(() => {
+                            const paymentStatus = getPaymentStatus(order);
+                            if (
+                              paymentStatus === "complete" ||
+                              paymentStatus === "completed"
+                            ) {
+                              return "bg-green-100 text-green-800";
+                            }
+                            if (paymentStatus === "pending") {
+                              return "bg-yellow-100 text-yellow-800";
+                            }
+                            if (paymentStatus === "refunded") {
+                              return "bg-red-100 text-red-800";
+                            }
+                            if (paymentStatus === "cancelled") {
+                              return "bg-gray-100 text-gray-800";
+                            }
+                            return "bg-gray-100 text-gray-800";
+                          })()}`}
                         >
-                          {(order.paymentInfo?.status || "N/A").toUpperCase()}
+                          {getPaymentStatus(order).toUpperCase()}
                         </span>
                       </div>
                       {order.notes && (
@@ -628,10 +783,8 @@ function MyOrders() {
                   </div>
                 </div>
 
-                {(order.orderStatus === "pending" ||
-                  order.status === "pending" ||
-                  order.orderStatus === "confirmed" ||
-                  order.status === "confirmed") && (
+                {(getOrderStatus(order) === "pending" ||
+                  getOrderStatus(order) === "confirmed") && (
                   <div className="flex justify-end mt-6">
                     <button
                       onClick={() => cancelOrder(order._id)}
@@ -643,53 +796,18 @@ function MyOrders() {
                 )}
 
                 {/* Action Buttons for Delivered Orders */}
-                {(order.orderStatus === "delivered" ||
-                  order.status === "delivered") &&
-                  order.payment_status !== "complete" &&
-                  order.paymentInfo?.status !== "complete" &&
-                  order.paymentInfo?.status !== "completed" && (
+                {getOrderStatus(order) === "delivered" &&
+                  getPaymentStatus(order) !== "complete" &&
+                  getPaymentStatus(order) !== "completed" && (
                     <div className="flex justify-end gap-3 mt-6">
-                      {order.dispute_status !== "open" &&
-                        order.dispute_status !== "pending_admin_review" && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setOrderForDispute(order);
-                                setShowDisputeModal(true);
-                              }}
-                              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
-                            >
-                              Create Dispute
-                            </button>
-                            <button
-                              onClick={() => confirmOrderReceipt(order._id)}
-                              disabled={confirmingOrderId === order._id}
-                              className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2 ${
-                                confirmingOrderId === order._id
-                                  ? "opacity-50 cursor-not-allowed"
-                                  : ""
-                              }`}
-                            >
-                              {confirmingOrderId === order._id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                                  Confirming...
-                                </>
-                              ) : (
-                                "Confirm Receipt"
-                              )}
-                            </button>
-                          </>
-                        )}
-                      {(order.dispute_status === "open" ||
-                        order.dispute_status === "pending_admin_review") && (
+                      {hasOpenDispute(order) ? (
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => navigate("/buyer/disputes")}
                             className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2"
                           >
                             <Gavel className="w-4 h-4" />
-                            View Dispute
+                            Open Dispute
                           </button>
                           <span className="px-4 py-2 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
                             {order.dispute_status === "open"
@@ -698,17 +816,172 @@ function MyOrders() {
                             - Cannot Confirm Receipt
                           </span>
                         </div>
+                      ) : (
+                        (() => {
+                          const disputeCheck = canCreateDispute(order);
+                          if (disputeCheck.canCreate) {
+                            return (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setOrderForDispute(order);
+                                    setShowDisputeModal(true);
+                                  }}
+                                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
+                                >
+                                  Create Dispute
+                                </button>
+                                <button
+                                  onClick={() => confirmOrderReceipt(order._id)}
+                                  disabled={confirmingOrderId === order._id}
+                                  className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2 ${
+                                    confirmingOrderId === order._id
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : ""
+                                  }`}
+                                >
+                                  {confirmingOrderId === order._id ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                      Confirming...
+                                    </>
+                                  ) : (
+                                    "Confirm Receipt"
+                                  )}
+                                </button>
+                                {disputeCheck.daysRemaining !== undefined && (
+                                  <p className="text-sm text-gray-500 italic self-center">
+                                    {disputeCheck.daysRemaining > 0
+                                      ? `${disputeCheck.daysRemaining} day${
+                                          disputeCheck.daysRemaining !== 1
+                                            ? "s"
+                                            : ""
+                                        } remaining to create dispute`
+                                      : "Last day to create dispute"}
+                                  </p>
+                                )}
+                              </>
+                            );
+                          } else {
+                            // Dispute window has expired
+                            if (
+                              disputeCheck.reason === "dispute_window_expired"
+                            ) {
+                              return (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      confirmOrderReceipt(order._id)
+                                    }
+                                    disabled={confirmingOrderId === order._id}
+                                    className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2 ${
+                                      confirmingOrderId === order._id
+                                        ? "opacity-50 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                  >
+                                    {confirmingOrderId === order._id ? (
+                                      <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                        Confirming...
+                                      </>
+                                    ) : (
+                                      "Confirm Receipt"
+                                    )}
+                                  </button>
+                                  <p className="text-sm text-gray-500 italic self-center">
+                                    Dispute creation window has expired (
+                                    {disputeCheck.daysSinceDelivery ||
+                                      disputeCheck.daysSinceReceipt}{" "}
+                                    days since delivery)
+                                  </p>
+                                </>
+                              );
+                            }
+                            // For other reasons, just show confirm receipt button
+                            return (
+                              <button
+                                onClick={() => confirmOrderReceipt(order._id)}
+                                disabled={confirmingOrderId === order._id}
+                                className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2 ${
+                                  confirmingOrderId === order._id
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : ""
+                                }`}
+                              >
+                                {confirmingOrderId === order._id ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                    Confirming...
+                                  </>
+                                ) : (
+                                  "Confirm Receipt"
+                                )}
+                              </button>
+                            );
+                          }
+                        })()
                       )}
                     </div>
                   )}
 
                 {/* Show confirmation status for received orders */}
-                {(order.orderStatus === "received" ||
-                  order.status === "received" ||
-                  order.payment_status === "complete" ||
-                  order.paymentInfo?.status === "complete" ||
-                  order.paymentInfo?.status === "completed") && (
-                  <div className="flex justify-end mt-6">
+                {(getOrderStatus(order) === "received" ||
+                  getPaymentStatus(order) === "complete" ||
+                  getPaymentStatus(order) === "completed") && (
+                  <div className="flex justify-between items-center mt-6">
+                    <div className="flex-1">
+                      {(() => {
+                        const disputeCheck = canCreateDispute(order);
+                        if (hasOpenDispute(order)) {
+                          return (
+                            <button
+                              onClick={() => navigate("/buyer/disputes")}
+                              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2"
+                            >
+                              <Gavel className="w-4 h-4" />
+                              Open Dispute
+                            </button>
+                          );
+                        } else if (disputeCheck.canCreate) {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => {
+                                  setOrderForDispute(order);
+                                  setShowDisputeModal(true);
+                                }}
+                                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
+                              >
+                                Create Dispute
+                              </button>
+                              {disputeCheck.daysRemaining !== undefined && (
+                                <p className="text-sm text-gray-500 italic">
+                                  {disputeCheck.daysRemaining > 0
+                                    ? `${disputeCheck.daysRemaining} day${
+                                        disputeCheck.daysRemaining !== 1
+                                          ? "s"
+                                          : ""
+                                      } remaining to create dispute`
+                                    : "Last day to create dispute"}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        } else if (
+                          disputeCheck.reason === "dispute_window_expired"
+                        ) {
+                          return (
+                            <p className="text-sm text-gray-500 italic">
+                              Dispute creation window has expired (
+                              {disputeCheck.daysSinceReceipt} days since
+                              receipt)
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                     <span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium flex items-center gap-2">
                       <svg
                         className="w-5 h-5"
@@ -729,28 +1002,62 @@ function MyOrders() {
                 )}
 
                 {/* Dispute Button for Shipped Orders */}
-                {(order.orderStatus === "shipped" ||
-                  order.status === "shipped") && (
+                {getOrderStatus(order) === "shipped" && (
                   <div className="flex justify-end mt-6">
-                    {order.dispute_status !== "open" &&
-                    order.dispute_status !== "pending_admin_review" ? (
-                      <button
-                        onClick={() => {
-                          setOrderForDispute(order);
-                          setShowDisputeModal(true);
-                        }}
-                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
-                      >
-                        Create Dispute
-                      </button>
-                    ) : (
+                    {hasOpenDispute(order) ? (
                       <button
                         onClick={() => navigate("/buyer/disputes")}
                         className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium flex items-center gap-2"
                       >
                         <Gavel className="w-4 h-4" />
-                        View Dispute
+                        Open Dispute
                       </button>
+                    ) : (
+                      (() => {
+                        const disputeCheck = canCreateDispute(order);
+                        if (disputeCheck.canCreate) {
+                          return (
+                            <button
+                              onClick={() => {
+                                setOrderForDispute(order);
+                                setShowDisputeModal(true);
+                              }}
+                              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow transition font-medium"
+                            >
+                              Create Dispute
+                            </button>
+                          );
+                        } else {
+                          // Show why dispute cannot be created
+                          if (
+                            disputeCheck.reason === "estimated_date_not_passed"
+                          ) {
+                            return (
+                              <div className="flex flex-col items-end gap-2">
+                                <p className="text-sm text-gray-600 text-right">
+                                  Estimated delivery date:{" "}
+                                  <span className="font-semibold">
+                                    {disputeCheck.estimatedDate}
+                                  </span>
+                                </p>
+                                <p className="text-sm text-gray-500 italic">
+                                  Can create dispute after estimated delivery
+                                  date passes
+                                </p>
+                              </div>
+                            );
+                          } else if (
+                            disputeCheck.reason === "no_estimated_date"
+                          ) {
+                            return (
+                              <p className="text-sm text-gray-500 italic">
+                                Estimated delivery date not available
+                              </p>
+                            );
+                          }
+                          return null;
+                        }
+                      })()
                     )}
                   </div>
                 )}

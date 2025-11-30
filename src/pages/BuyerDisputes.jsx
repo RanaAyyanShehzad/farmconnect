@@ -275,8 +275,17 @@ function BuyerDisputes() {
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Seller</p>
                       <p className="text-sm font-medium text-gray-900 capitalize">
-                        {dispute.sellerRole || "Unknown"}
+                        {typeof dispute.sellerId === "object" &&
+                        dispute.sellerId?.name
+                          ? dispute.sellerId.name
+                          : `${dispute.sellerRole || "Unknown"}`}
                       </p>
+                      {typeof dispute.sellerId === "object" &&
+                        dispute.sellerId?.email && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {dispute.sellerId.email}
+                          </p>
+                        )}
                     </div>
                   </div>
 
@@ -595,17 +604,25 @@ function BuyerDisputes() {
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Seller</p>
                   <p className="text-base font-medium text-gray-900 capitalize">
-                    {selectedDispute.sellerRole || "Unknown"}
+                    {typeof selectedDispute.sellerId === "object" &&
+                    selectedDispute.sellerId?.name
+                      ? selectedDispute.sellerId.name
+                      : `${selectedDispute.sellerRole || "Unknown"} Seller`}
                   </p>
                   {typeof selectedDispute.sellerId === "object" &&
                     selectedDispute.sellerId?.name && (
                       <>
-                        <p className="text-sm text-gray-600">
-                          {selectedDispute.sellerId.name}
+                        <p className="text-sm text-gray-600 capitalize mt-0.5">
+                          {selectedDispute.sellerRole || "Seller"}
                         </p>
                         {selectedDispute.sellerId.email && (
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-gray-500 mt-1">
                             {selectedDispute.sellerId.email}
+                          </p>
+                        )}
+                        {selectedDispute.sellerId.phone && (
+                          <p className="text-xs text-gray-500">
+                            {selectedDispute.sellerId.phone}
                           </p>
                         )}
                       </>
