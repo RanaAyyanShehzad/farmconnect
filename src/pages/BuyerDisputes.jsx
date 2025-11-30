@@ -521,7 +521,7 @@ function BuyerDisputes() {
           order={selectedOrder}
           onSuccess={() => {
             fetchData();
-            toast.success("Dispute created successfully");
+            // Toast is already shown in DisputeModal
           }}
         />
       )}
@@ -770,7 +770,7 @@ function BuyerDisputes() {
           dispute={selectedDispute}
           onSuccess={() => {
             fetchData();
-            toast.success("Dispute resolved successfully");
+            // Toast is already shown in DisputeResolveModal
           }}
         />
       )}

@@ -580,7 +580,7 @@ function FarmerDisputes() {
           dispute={selectedDispute}
           onSuccess={() => {
             fetchDisputes();
-            toast.success("Dispute response submitted successfully");
+            // Toast is already shown in DisputeResponseModal
           }}
         />
       )}
