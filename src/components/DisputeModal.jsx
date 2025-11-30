@@ -70,8 +70,15 @@ function DisputeModal({ isOpen, onClose, order }) {
       return;
     }
 
-    if (disputeType === "product_fault" && proofImages.length === 0) {
-      toast.error("Please provide proof images for product fault disputes");
+    if (
+      (disputeType === "product_fault" || disputeType === "wrong_item") &&
+      proofImages.length === 0
+    ) {
+      toast.error(
+        `Please provide proof images for ${
+          disputeType === "product_fault" ? "product fault" : "wrong item"
+        } disputes`
+      );
       return;
     }
 
@@ -87,8 +94,11 @@ function DisputeModal({ isOpen, onClose, order }) {
       };
 
       const response = await axios.post(
-        `${API_BASE}/order/dispute/${order._id}`,
-        disputeData,
+        `${API_BASE}/order/dispute`,
+        {
+          orderId: order._id,
+          ...disputeData,
+        },
         { withCredentials: true }
       );
 
@@ -168,13 +178,18 @@ function DisputeModal({ isOpen, onClose, order }) {
               />
             </div>
 
-            {disputeType === "product_fault" && (
+            {(disputeType === "product_fault" ||
+              disputeType === "wrong_item") && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Proof Images <span className="text-red-500">*</span>
                     <span className="text-xs text-gray-500 ml-2">
-                      (Required for product fault)
+                      (Required for{" "}
+                      {disputeType === "product_fault"
+                        ? "product fault"
+                        : "wrong item"}
+                      )
                     </span>
                   </label>
                   <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
@@ -239,7 +254,11 @@ function DisputeModal({ isOpen, onClose, order }) {
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Provide detailed description of the product fault..."
+                    placeholder={
+                      disputeType === "product_fault"
+                        ? "Provide detailed description of the product fault..."
+                        : "Describe the wrong item received and what was expected..."
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
                     rows="3"
                   />

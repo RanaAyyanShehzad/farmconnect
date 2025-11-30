@@ -33,6 +33,9 @@ function OrderManagement() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [orderToReject, setOrderToReject] = useState(null);
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [orderToAccept, setOrderToAccept] = useState(null);
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState("");
   const navigate = useNavigate();
 
   // Fetch orders from API with authentication
@@ -87,17 +90,38 @@ function OrderManagement() {
     fetchOrders();
   }, []);
 
-  // Accept order (seller)
-  const handleAcceptOrder = async (orderId) => {
+  // Accept order (seller) with estimated delivery date
+  const handleAcceptOrder = async (orderId, estimatedDate) => {
+    if (!estimatedDate || estimatedDate.trim() === "") {
+      toast.error("Please provide an estimated delivery date");
+      return;
+    }
+
+    // Validate that the date is in the future
+    const selectedDate = new Date(estimatedDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (selectedDate <= today) {
+      toast.error("Estimated delivery date must be in the future");
+      return;
+    }
+
     try {
+      // Format date as ISO string
+      const formattedDate = new Date(estimatedDate).toISOString();
+
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/accept`,
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/accept/${orderId}`,
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
           credentials: "include",
+          body: JSON.stringify({
+            estimatedDeliveryDate: formattedDate,
+          }),
         }
       );
 
@@ -105,6 +129,9 @@ function OrderManagement() {
 
       if (data.success) {
         toast.success("Order accepted successfully!");
+        setShowAcceptModal(false);
+        setEstimatedDeliveryDate("");
+        setOrderToAccept(null);
         fetchOrders(); // Refresh orders
         if (selectedOrder && selectedOrder._id === orderId) {
           setSelectedOrder(data.order);
@@ -127,9 +154,9 @@ function OrderManagement() {
 
     try {
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/v1/order/${orderId}/reject`,
+        `https://agrofarm-vd8i.onrender.com/api/v1/order/reject/${orderId}`,
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
@@ -207,7 +234,7 @@ function OrderManagement() {
       });
 
       const response = await fetch(url, {
-        method: "PATCH",
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
@@ -215,7 +242,37 @@ function OrderManagement() {
         body: JSON.stringify({ status: newStatus }),
       });
 
-      const responseData = await response.json();
+      // Get response text first to handle both JSON and HTML responses
+      const responseText = await response.text();
+      let responseData;
+
+      // Try to parse as JSON, but handle non-JSON responses gracefully
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (parseError) {
+        // Response is not JSON (likely HTML error page)
+        console.error("Failed to parse response as JSON:", {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          responsePreview: responseText.substring(0, 500),
+        });
+
+        // Check if it's a 404 or similar error
+        if (response.status === 404) {
+          throw new Error(
+            "Status update endpoint not found. Please contact support or check if the backend endpoint is configured correctly."
+          );
+        } else if (response.status >= 500) {
+          throw new Error(
+            "Server error occurred while updating status. Please try again later."
+          );
+        } else {
+          throw new Error(
+            `Failed to update status. Server returned status ${response.status}. Please check the endpoint configuration.`
+          );
+        }
+      }
 
       if (!response.ok) {
         console.error("API Error:", {
@@ -239,6 +296,9 @@ function OrderManagement() {
       if (responseData.order) {
         setSelectedOrder(responseData.order);
       }
+
+      // Close the modal immediately after successful status change
+      setShowOrderDetails(false);
 
       // Refresh orders list to show updated status
       await fetchOrders();
@@ -902,7 +962,10 @@ function OrderManagement() {
                         {hasPendingProducts(order) && (
                           <>
                             <button
-                              onClick={() => handleAcceptOrder(order._id)}
+                              onClick={() => {
+                                setOrderToAccept(order);
+                                setShowAcceptModal(true);
+                              }}
                               className="text-green-600 hover:text-green-900 px-3 py-1 rounded-md hover:bg-green-50 transition text-xs font-medium"
                               title="Accept Order"
                             >
@@ -1344,43 +1407,96 @@ function OrderManagement() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-4">
-                                  <select
-                                    value={productStatus}
-                                    onChange={(e) => {
-                                      if (!isCancelled) {
-                                        // Use the product item ID already extracted above
-                                        if (!productItemId) {
-                                          toast.error(
-                                            "Product item ID not found. Please refresh the order details."
-                                          );
-                                          return;
-                                        }
-                                        if (!selectedOrder._id) {
-                                          toast.error("Order ID not found.");
-                                          return;
-                                        }
-                                        handleProductStatusChange(
-                                          selectedOrder._id,
-                                          productItemId,
-                                          e.target.value
-                                        );
+                                  {(() => {
+                                    // Get valid next statuses based on current status
+                                    const getValidNextStatuses = (
+                                      currentStatus
+                                    ) => {
+                                      const statusLower = (
+                                        currentStatus || ""
+                                      ).toLowerCase();
+
+                                      // Status flow: pending → confirmed → processing → shipped → delivered → received
+                                      // Once delivered or received, cannot be changed by seller
+                                      if (statusLower === "confirmed") {
+                                        return ["processing", "cancelled"];
                                       }
-                                    }}
-                                    disabled={isCancelled}
-                                    className={`border rounded px-2 py-1 text-xs focus:ring-green-500 focus:border-green-500 ${
-                                      isCancelled
-                                        ? "opacity-50 cursor-not-allowed"
-                                        : ""
-                                    }`}
-                                  >
-                                    <option value="processing">
-                                      Processing
-                                    </option>
-                                    <option value="confirmed">Confirmed</option>
-                                    <option value="shipped">Shipped</option>
-                                    <option value="delivered">Delivered</option>
-                                    <option value="cancelled">Cancelled</option>
-                                  </select>
+                                      if (statusLower === "processing") {
+                                        return ["shipped", "cancelled"];
+                                      }
+                                      if (statusLower === "shipped") {
+                                        return ["delivered"]; // Can only go to delivered
+                                      }
+                                      // delivered, received, cancelled, pending - cannot be changed by seller
+                                      return [];
+                                    };
+
+                                    const validStatuses =
+                                      getValidNextStatuses(productStatus);
+                                    const canChangeStatus =
+                                      validStatuses.length > 0 && !isCancelled;
+                                    const isDeliveredOrReceived =
+                                      productStatus === "delivered" ||
+                                      productStatus === "received";
+
+                                    if (
+                                      !canChangeStatus &&
+                                      !isDeliveredOrReceived &&
+                                      !isCancelled
+                                    ) {
+                                      return (
+                                        <span className="text-xs text-gray-500 italic">
+                                          Cannot change status
+                                        </span>
+                                      );
+                                    }
+
+                                    if (isDeliveredOrReceived || isCancelled) {
+                                      return (
+                                        <span
+                                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                            getStatusInfo(productStatus).color
+                                          }`}
+                                        >
+                                          {getStatusInfo(productStatus).text}
+                                        </span>
+                                      );
+                                    }
+
+                                    return (
+                                      <select
+                                        value={productStatus}
+                                        onChange={(e) => {
+                                          // Use the product item ID already extracted above
+                                          if (!productItemId) {
+                                            toast.error(
+                                              "Product item ID not found. Please refresh the order details."
+                                            );
+                                            return;
+                                          }
+                                          if (!selectedOrder._id) {
+                                            toast.error("Order ID not found.");
+                                            return;
+                                          }
+                                          handleProductStatusChange(
+                                            selectedOrder._id,
+                                            productItemId,
+                                            e.target.value
+                                          );
+                                        }}
+                                        className="border rounded px-2 py-1 text-xs focus:ring-green-500 focus:border-green-500"
+                                      >
+                                        <option value={productStatus} disabled>
+                                          {getStatusInfo(productStatus).text}
+                                        </option>
+                                        {validStatuses.map((status) => (
+                                          <option key={status} value={status}>
+                                            {getStatusInfo(status).text}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    );
+                                  })()}
                                 </td>
                               </tr>
                             );
@@ -1454,6 +1570,66 @@ function OrderManagement() {
                 </div>
               </motion.div>
             </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Accept Order Modal */}
+      <AnimatePresence>
+        {showAcceptModal && orderToAccept && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Accept Order
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Please provide an estimated delivery date for this order. The
+                buyer will be notified of the acceptance.
+              </p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estimated Delivery Date{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={estimatedDeliveryDate}
+                  onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The estimated delivery date must be in the future.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowAcceptModal(false);
+                    setEstimatedDeliveryDate("");
+                    setOrderToAccept(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() =>
+                    handleAcceptOrder(orderToAccept._id, estimatedDeliveryDate)
+                  }
+                  disabled={!estimatedDeliveryDate.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Accept Order
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

@@ -768,10 +768,10 @@ const LandingPage = () => {
                   "Safe and transparent payment system for all parties",
               },
               {
-                icon: "🚚",
-                title: "Logistics Support",
+                icon: "⚖️",
+                title: "Dispute Resolution",
                 description:
-                  "Integrated transportation solutions for product delivery",
+                  "Fair and transparent dispute management system with admin oversight for buyer-seller conflicts",
               },
               {
                 icon: "📊",
@@ -780,10 +780,10 @@ const LandingPage = () => {
                   "Comprehensive order tracking and management system for seamless transactions",
               },
               {
-                icon: "🌍",
-                title: "Sustainability Focus",
+                icon: "⭐",
+                title: "Product Reviews & Ratings",
                 description:
-                  "Promoting environmentally friendly farming practices",
+                  "Authentic buyer reviews and ratings to help make informed purchasing decisions",
               },
             ].map((feature, index) => (
               <motion.div

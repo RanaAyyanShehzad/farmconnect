@@ -89,7 +89,7 @@ const ProductDetail = () => {
       if (response.ok) {
         const data = await response.json();
         setReviews(data.reviews || []);
-        setAverageRating(data.averageRating || 0);
+        setAverageRating(Number(data.averageRating) || 0);
       }
     } catch (err) {
       console.error("Error fetching reviews:", err);
@@ -175,8 +175,9 @@ const ProductDetail = () => {
 
   const renderStars = (rating) => {
     const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
+    const numericRating = Number(rating) || 0;
+    const fullStars = Math.floor(numericRating);
+    const hasHalfStar = numericRating % 1 >= 0.5;
 
     for (let i = 0; i < fullStars; i++) {
       stars.push(
@@ -347,7 +348,7 @@ const ProductDetail = () => {
                   <div className="flex items-center gap-2">
                     {renderStars(averageRating)}
                     <span className="text-base sm:text-lg font-semibold text-gray-700">
-                      {averageRating.toFixed(1)}
+                      {typeof averageRating === 'number' ? averageRating.toFixed(1) : '0.0'}
                     </span>
                     <span className="text-sm sm:text-base text-gray-500">
                       ({reviews.length}{" "}
@@ -586,7 +587,7 @@ const ProductDetail = () => {
               )}
 
               {/* Features */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-gray-200">
+              {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-gray-200">
                 <div className="flex items-center gap-3">
                   <Truck className="w-6 h-6 text-green-600" />
                   <div>
@@ -610,7 +611,7 @@ const ProductDetail = () => {
                     <p className="text-xs text-gray-500">Fresh products</p>
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
 

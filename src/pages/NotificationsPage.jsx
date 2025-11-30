@@ -68,9 +68,7 @@ function NotificationsPage() {
     if (!notification.isRead) {
       await handleMarkAsRead(notification._id);
     }
-    if (notification.actionUrl) {
-      navigate(notification.actionUrl);
-    }
+    // Removed navigation - notifications are now informational only
   };
 
   const getNotificationIcon = (type) => {
@@ -274,17 +272,6 @@ function NotificationsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {notification.actionUrl && (
-                          <button
-                            onClick={() =>
-                              handleNotificationClick(notification)
-                            }
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="View details"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
-                        )}
                         {!notification.isRead && (
                           <button
                             onClick={() => handleMarkAsRead(notification._id)}
