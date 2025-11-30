@@ -2,14 +2,12 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import LanguageToggle from "./LanguageToggle";
 import { useTranslation } from "../hooks/useTranslation";
-import { useWeatherDisplay } from "../hooks/useWeatherDisplay";
+
 
 function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
   const { t } = useTranslation();
-  const weather = useWeatherDisplay();
-  const weatherLabel =
-    weather.status === "loading" ? "..." : weather.temperature;
+  
 
   return (
     <>
@@ -134,13 +132,7 @@ function SupplierSidebar({ sidebarOpen, setSidebarOpen }) {
           >
             Disputes
           </NavItem>
-          <NavItem
-            to="weather"
-            icon="cloud-rain"
-            active={location.pathname === "/weather"}
-          >
-            {t("nav.weather")}
-          </NavItem>
+         
 
           <p className="text-xs font-bold text-yellow-300 uppercase tracking-wider px-3 mt-6 mb-3 flex items-center gap-2">
             <div className="w-1 h-4 bg-yellow-400 rounded-full"></div>
