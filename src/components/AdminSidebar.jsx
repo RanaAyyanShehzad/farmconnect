@@ -35,7 +35,7 @@ function AdminSidebar({ sidebarOpen, setSidebarOpen }) {
   const navItems = [
     { to: "", icon: LayoutDashboard, label: "Dashboard" },
     { to: "users", icon: Users, label: "User Management" },
-    { to: "categories", icon: FolderTree, label: "Categories" },
+    // { to: "categories", icon: FolderTree, label: "Categories" },
     { to: "products", icon: Package, label: "Products" },
     { to: "orders", icon: ShoppingCart, label: "Orders" },
     { to: "disputes", icon: Gavel, label: "Disputes" },

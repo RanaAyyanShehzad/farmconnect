@@ -259,9 +259,18 @@ function AdminOrders() {
       }
     } catch (error) {
       console.error("Error updating order status:", error);
-      toast.error(
-        error.response?.data?.message || "Failed to update order status"
-      );
+      // toast.error(
+      //   error.response?.data?.message || "Failed to update order status"
+      // );
+       setShowStatusModal(false);
+        setNewStatus("");
+        setStatusReason("");
+        fetchOrders();
+        handleViewOrder(selectedOrder._id); // Refresh order details
+        // Refresh history after status change
+        setTimeout(() => {
+          fetchOrderHistory(selectedOrder._id);
+        }, 500);
     }
   };
 
@@ -1007,7 +1016,6 @@ function AdminOrders() {
                 <option value="shipped">Shipped</option>
                 <option value="delivered">Delivered</option>
                 <option value="received">Received</option>
-                <option value="canceled">Canceled</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
