@@ -38,6 +38,18 @@ function MyOrders() {
     return `₨ ${amount?.toLocaleString() || "0"}`;
   };
 
+  // Calculate total order amount from products
+  const calculateOrderTotal = (order) => {
+    if (!order.products || order.products.length === 0) {
+      return order.totalPrice || 0;
+    }
+    return order.products.reduce((total, product) => {
+      const price = product.productId?.price || product.price || 0;
+      const quantity = product.quantity || 1;
+      return total + price * quantity;
+    }, 0);
+  };
+
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
@@ -547,7 +559,7 @@ function MyOrders() {
                       {getOrderStatus(order)?.toUpperCase() || "PENDING"}
                     </span>
                     <p className="text-lg font-semibold">
-                      {formatCurrency(order.totalPrice || 0)}
+                      {formatCurrency(calculateOrderTotal(order))}
                     </p>
                   </div>
                 </div>

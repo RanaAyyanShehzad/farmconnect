@@ -428,7 +428,10 @@ function BuyerDashboard() {
                   <tr>
                     <td colSpan="5" className="px-4 py-3 text-center">
                       No recent orders found.{" "}
-                      <Link to="/products" className="text-green-600">
+                      <Link
+                        to="/buyer/products"
+                        className="text-green-600 hover:text-green-800 font-semibold"
+                      >
                         Start shopping
                       </Link>
                     </td>
