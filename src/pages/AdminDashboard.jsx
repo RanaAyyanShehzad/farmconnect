@@ -130,23 +130,84 @@ function AdminDashboard() {
         Object.entries(statusCounts).map(([name, value]) => ({ name, value }))
       );
 
-      // Fetch orders
+      // Fetch orders - try to get all orders
       try {
-        const ordersRes = await axios.get(`${API_BASE}/orders?limit=1000`, {
-          withCredentials: true,
-        });
-        const orders = ordersRes.data.orders || [];
+        let allOrders = [];
+        let page = 1;
+        let hasMore = true;
+        const limit = 1000; // Fetch in batches
 
-        // Calculate total orders and revenue
-        const totalOrders = orders.length;
-        const totalRevenue = orders.reduce((sum, order) => {
-          return sum + (order.totalPrice || 0);
+        // Fetch all orders using pagination
+        while (hasMore && page <= 10) {
+          // Safety limit to prevent infinite loops
+          try {
+            const ordersRes = await axios.get(
+              `${API_BASE}/orders?limit=${limit}&page=${page}`,
+              {
+                withCredentials: true,
+              }
+            );
+            const orders = ordersRes.data.orders || [];
+
+            if (orders.length === 0) {
+              // No more orders
+              hasMore = false;
+            } else {
+              allOrders = [...allOrders, ...orders];
+
+              // If total is provided and we've reached it, stop
+              if (
+                ordersRes.data.total &&
+                allOrders.length >= ordersRes.data.total
+              ) {
+                hasMore = false;
+              } else if (orders.length < limit) {
+                // Got fewer orders than limit, no more pages
+                hasMore = false;
+              }
+            }
+          } catch (pageError) {
+            console.error(`Error fetching orders page ${page}:`, pageError);
+            hasMore = false;
+          }
+
+          page++;
+        }
+
+        // Calculate the 6-month window (same as graph)
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        sixMonthsAgo.setDate(1); // Start of the month 6 months ago
+        sixMonthsAgo.setHours(0, 0, 0, 0);
+
+        // Filter orders to only include those from the last 6 months
+        const ordersLast6Months = allOrders.filter((order) => {
+          if (!order.createdAt && !order.orderDate) return false;
+          try {
+            const orderDate = new Date(order.createdAt || order.orderDate);
+            // Check if order date is valid and within the 6-month window
+            if (isNaN(orderDate.getTime())) return false;
+            return orderDate >= sixMonthsAgo;
+          } catch (e) {
+            return false;
+          }
+        });
+
+        // Calculate total orders and revenue (only from last 6 months to match graph)
+        const totalOrders = ordersLast6Months.length;
+        const totalRevenue = ordersLast6Months.reduce((sum, order) => {
+          const price = parseFloat(order.totalPrice) || 0;
+          return sum + price;
         }, 0);
+
+        console.log("Total Orders (Last 6 Months):", totalOrders);
+        console.log("Total Revenue (Last 6 Months):", totalRevenue);
+        console.log("All Orders Count:", allOrders.length);
 
         setStats((prev) => ({
           ...prev,
           totalOrders,
-          totalRevenue,
+          totalRevenue: Math.round(totalRevenue * 100) / 100, // Round to 2 decimal places
         }));
 
         // Prepare revenue and order trend data (last 6 months)
@@ -157,17 +218,25 @@ function AdminDashboard() {
           const date = new Date();
           date.setMonth(date.getMonth() - i);
           const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          monthStart.setHours(0, 0, 0, 0);
           const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+          monthEnd.setHours(23, 59, 59, 999);
 
-          // Filter orders for this month
-          const monthOrders = orders.filter((order) => {
-            const orderDate = new Date(order.createdAt || order.orderDate);
-            return orderDate >= monthStart && orderDate <= monthEnd;
+          // Filter orders for this month (from the already filtered 6-month set)
+          const monthOrders = ordersLast6Months.filter((order) => {
+            try {
+              const orderDate = new Date(order.createdAt || order.orderDate);
+              if (isNaN(orderDate.getTime())) return false;
+              return orderDate >= monthStart && orderDate <= monthEnd;
+            } catch (e) {
+              return false;
+            }
           });
 
           // Calculate revenue for this month
           const monthRevenue = monthOrders.reduce((sum, order) => {
-            return sum + (order.totalPrice || 0);
+            const price = parseFloat(order.totalPrice) || 0;
+            return sum + price;
           }, 0);
 
           // Count orders for this month
@@ -175,7 +244,7 @@ function AdminDashboard() {
 
           revenueChartData.push({
             month: date.toLocaleDateString("en-US", { month: "short" }),
-            revenue: monthRevenue,
+            revenue: Math.round(monthRevenue * 100) / 100,
           });
 
           orderTrendData.push({
@@ -187,7 +256,7 @@ function AdminDashboard() {
         setRevenueData(revenueChartData);
         setOrderChartData(orderTrendData);
       } catch (orderError) {
-        console.warn("Could not fetch orders:", orderError);
+        console.error("Could not fetch orders:", orderError);
         // Set default empty data
         const defaultData = [];
         for (let i = 5; i >= 0; i--) {
@@ -201,6 +270,8 @@ function AdminDashboard() {
         }
         setRevenueData(defaultData);
         setOrderChartData(defaultData);
+        // Don't set error state for orders, just log it
+        console.warn("Orders data unavailable, using defaults");
       }
 
       setLoading(false);
@@ -321,6 +392,7 @@ function AdminDashboard() {
               <p className="text-3xl font-bold text-purple-700 mt-1">
                 {loading ? "..." : stats.totalOrders}
               </p>
+              <p className="text-xs text-purple-600 mt-1">Last 6 months</p>
             </div>
             <ShoppingCart className="w-12 h-12 text-purple-500" />
           </div>
@@ -341,6 +413,7 @@ function AdminDashboard() {
               <p className="text-3xl font-bold text-yellow-700 mt-1">
                 {loading ? "..." : `₨ ${stats.totalRevenue.toLocaleString()}`}
               </p>
+              <p className="text-xs text-yellow-600 mt-1">Last 6 months</p>
             </div>
             <DollarSign className="w-12 h-12 text-yellow-500" />
           </div>
@@ -473,7 +546,8 @@ function AdminDashboard() {
             <div className="h-64 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
             </div>
-          ) : (
+          ) : revenueData.length > 0 &&
+            revenueData.some((d) => d.revenue > 0) ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -481,7 +555,7 @@ function AdminDashboard() {
                 <YAxis />
                 <Tooltip
                   formatter={(value) => [
-                    `₨ ${value.toLocaleString()}`,
+                    `₨ ${Number(value).toLocaleString()}`,
                     "Revenue",
                   ]}
                 />
@@ -495,6 +569,10 @@ function AdminDashboard() {
                 />
               </LineChart>
             </ResponsiveContainer>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No revenue data available
+            </div>
           )}
         </div>
 
@@ -507,7 +585,8 @@ function AdminDashboard() {
             <div className="h-64 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
             </div>
-          ) : (
+          ) : orderChartData.length > 0 &&
+            orderChartData.some((d) => d.orders > 0) ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={orderChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -518,6 +597,10 @@ function AdminDashboard() {
                 <Bar dataKey="orders" fill="#3b82f6" name="Number of Orders" />
               </BarChart>
             </ResponsiveContainer>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No orders data available
+            </div>
           )}
         </div>
       </div>

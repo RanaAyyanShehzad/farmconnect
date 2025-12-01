@@ -302,7 +302,7 @@ function BuyerCart() {
 
     try {
       const response = await fetch(
-        `https://agrofarm-vd8i.onrender.com/api/cart/clear/${cartId}`, // Use cart ID in the URL
+        `https://agrofarm-vd8i.onrender.com/api/cart/clear`,
         {
           method: "DELETE",
           credentials: "include",
@@ -312,17 +312,43 @@ function BuyerCart() {
         }
       );
 
-      if (response.ok) {
-        const mess = await response.json();
-        toast.success(mess.message || "Cart is cleared successfully.");
-        setCartId(null); // Reset cart ID after clearing
-      }
-
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to clear cart");
+        const errorText = await response.text();
+        let errorMessage = "Failed to clear cart";
+
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // If it's HTML or other non-JSON, use a generic message
+          if (errorText.includes("<!DOCTYPE")) {
+            errorMessage = "Server error occurred while clearing cart";
+          } else {
+            errorMessage = errorText || errorMessage;
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
+      // Try to parse response as JSON
+      let data;
+      const responseText = await response.text();
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          // If response is empty or not JSON, create a success response
+          data = { message: "Cart cleared successfully" };
+        }
+      } else {
+        data = { message: "Cart cleared successfully" };
+      }
+
+      toast.success(data.message || "Cart cleared successfully");
+      setCartItems([]);
+      setCartId(null);
       fetchCartItems();
     } catch (err) {
       console.error("Failed to clear cart:", err);

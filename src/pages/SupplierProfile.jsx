@@ -345,7 +345,7 @@ const SupplierProfile = () => {
             animate={{ y: 0 }}
             className="text-2xl sm:text-3xl font-bold text-gray-800"
           >
-            Farmer Profile
+          Supplier Profile
           </motion.h1>
 
           <div className="flex gap-3 w-full sm:w-auto">

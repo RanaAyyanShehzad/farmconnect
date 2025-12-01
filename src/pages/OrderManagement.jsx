@@ -491,6 +491,10 @@ function OrderManagement() {
 
       // Refresh orders list to show updated status
       await fetchOrders();
+
+      // Close the modal after successful status update
+      setShowOrderDetails(false);
+      setSelectedOrder(null);
     } catch (err) {
       console.error("Error updating product status:", err);
       toast.error(err.message || "Failed to update product status");
@@ -684,6 +688,19 @@ function OrderManagement() {
     return `Rs. ${amount?.toLocaleString() || "0"}`;
   };
 
+  // Calculate total order amount from products
+  const calculateOrderTotal = (order) => {
+    if (!order.products || order.products.length === 0) {
+      return order.totalPrice || 0;
+    }
+    return order.products.reduce((total, product) => {
+      const productData = product.productId || product;
+      const price = productData.price || product.price || 0;
+      const quantity = product.quantity || 1;
+      return total + price * quantity;
+    }, 0);
+  };
+
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
@@ -853,10 +870,18 @@ function OrderManagement() {
         doc.text(`Order Notes: ${orderData.notes}`, 14, finalY + 10);
       }
 
+      // Calculate total from products for PDF
+      const pdfTotal = (orderData.products || []).reduce((total, item) => {
+        const product = item.productId || item;
+        const price = product.price || 0;
+        const quantity = item.quantity || 0;
+        return total + price * quantity;
+      }, 0);
+
       // Total
       doc.setFontSize(12);
       doc.text(
-        `Total: Rs. ${orderData.totalPrice?.toLocaleString() || "0"}`,
+        `Total: Rs. ${pdfTotal.toLocaleString() || "0"}`,
         120,
         finalY + 15,
         { align: "right" }
@@ -1153,7 +1178,7 @@ function OrderManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatCurrency(order.totalPrice)}
+                      {formatCurrency(calculateOrderTotal(order))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -1736,7 +1761,9 @@ function OrderManagement() {
                               Subtotal
                             </td>
                             <td className="px-4 py-4 text-right font-medium text-gray-800">
-                              {formatCurrency(selectedOrder.totalPrice)}
+                              {formatCurrency(
+                                calculateOrderTotal(selectedOrder)
+                              )}
                             </td>
                           </tr>
                           <tr className="bg-gray-50">
@@ -1758,7 +1785,9 @@ function OrderManagement() {
                               Total
                             </td>
                             <td className="px-4 py-4 text-right font-bold text-gray-800">
-                              {formatCurrency(selectedOrder.totalPrice)}
+                              {formatCurrency(
+                                calculateOrderTotal(selectedOrder)
+                              )}
                             </td>
                           </tr>
                         </tbody>
