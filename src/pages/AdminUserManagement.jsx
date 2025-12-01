@@ -532,7 +532,7 @@ function AdminUserManagement() {
                                 <Ban className="w-5 h-5" />
                               </button>
                             )}
-                            <button
+                            {/* <button
                               onClick={() => {
                                 setSelectedUser(user);
                                 setShowPasswordResetModal(true);
@@ -541,7 +541,7 @@ function AdminUserManagement() {
                               title="Reset Password"
                             >
                               <Key className="w-5 h-5" />
-                            </button>
+                            </button> */}
                           </>
                         )}
                         <button
